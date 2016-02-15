@@ -11,10 +11,12 @@ var floor;
 var arrow;
 var segment;
 var sphereMesh;
+var circle;
 var square;
 var positions = new Array();
 
 var lineProgram;
+var circleProgram;
 var sphereProgram;
 var textureProgram;
 
@@ -144,6 +146,22 @@ function renderSphere() {
   gl.drawElements(gl.TRIANGLES, sphereMesh.numIndices, gl.UNSIGNED_SHORT, 0);
 };
 
+function renderCircle() {
+  gl.useProgram(circleProgram.program);
+
+  gl.enableVertexAttribArray(circleProgram.vertexLoc);
+  gl.bindBuffer(gl.ARRAY_BUFFER, circle.vertexBuffer);
+  gl.vertexAttribPointer(circleProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
+
+  nMatrix = normalMatrix(mvMatrix, false);
+
+  gl.uniformMatrix4fv(circleProgram.mvMatrixLoc, false, flatten(mvMatrix));
+  gl.uniformMatrix4fv(circleProgram.pMatrixLoc, false, flatten(pMatrix));
+  gl.uniformMatrix4fv(circleProgram.nMatrixLoc, false, flatten(nMatrix));
+
+  gl.drawArrays(gl.TRIANGLE_FAN, 0, circle.numPoints);
+};
+
 function renderTexture() {
   gl.useProgram(textureProgram.program);
 
@@ -260,6 +278,24 @@ function renderTextures() {
   }
 }
 
+function renderCircles() {
+  pushMatrix();
+  const s = 0.08;
+  for (var i = 0; i < positions.length; i++) { 
+    pushMatrix();
+    mvMatrix = mult(mvMatrix, translate(positions[i]));
+    var phi = Math.acos(dot(vec3(1, 0, 0), positions[i].m));
+    if (phi != 0) {
+      var axis = cross(vec3(1, 0, 0), positions[i].m);
+      mvMatrix = mult(mvMatrix, rotate(degrees(phi), axis));
+    }
+    mvMatrix = mult(mvMatrix, scalem(s, s, s));
+    renderCircle();
+    popMatrix();
+  }
+  popMatrix();
+}
+
 function renderSpheres() {
   pushMatrix();
   const s = 0.08;
@@ -340,12 +376,11 @@ function render() {
   }
   mvMatrix = mult(mvMatrix, rotMatrix);
 
-  gl.enable(gl.BLEND);
-  // gl.blendFunc(gl.ONE, gl.ZERO);
-  // gl.blendFunc(gl.ZERO, gl.ONE);
-  // gl.blendFunc(gl.SRC_ALPHA, gl.DEST_ALPHA);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  // gl.disable(gl.DEPTH_TEST);
+  // gl.enable(gl.BLEND);
+  // // gl.blendFunc(gl.ONE, gl.ZERO);
+  // // gl.blendFunc(gl.ZERO, gl.ONE);
+  // // gl.blendFunc(gl.SRC_ALPHA, gl.DEST_ALPHA);
+  // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   // renderFloor();
 
@@ -354,9 +389,12 @@ function render() {
   renderTexture();
   popMatrix();
 
+  gl.disable(gl.DEPTH_TEST);
+
   // renderTextures();
-  renderSpheres();
-  renderMagneticField();
+  // renderSpheres();
+  renderCircles();
+  // renderMagneticField();
 }
 
 function keyDown(e) {
@@ -539,6 +577,7 @@ window.onload = function init() {
 
   //  Load shaders and initialize attribute buffers
   lineProgram = new LineProgram();
+  circleProgram = new CircleProgram();
   sphereProgram = new SphereProgram();
   textureProgram = new TextureProgram();
 
@@ -552,12 +591,13 @@ window.onload = function init() {
   segment = new Segment();
   sphereMesh = new SphereMesh(1, 200, 200);
   square = new Square();
+  circle = new Circle();
 
   positions.push(vec3(0, 0, 0));
   positions[0].m = vec3(1, 0, 0);;
 
-  positions.push(vec3(0.75, 0.75, 0));
-  positions[1].m = normalize(vec3(0, 1, 0));
+  // positions.push(vec3(0.75, 0.75, 0));
+  // positions[1].m = normalize(vec3(0, 1, 0));
 
   // positions.push(vec3(0.5, 0.5, 0));
   // positions[1].m = normalize(vec3(0, 1, 0));
