@@ -12,11 +12,14 @@ var arrow;
 var segment;
 var sphereMesh;
 var circle;
+var forceArrow;
+var torqueArrow;
 var square;
 var positions = new Array();
 
 var lineProgram;
 var circleProgram;
+var flatProgram;
 var sphereProgram;
 var textureProgram;
 
@@ -159,7 +162,116 @@ function renderCircle() {
   gl.uniformMatrix4fv(circleProgram.pMatrixLoc, false, flatten(pMatrix));
   gl.uniformMatrix4fv(circleProgram.nMatrixLoc, false, flatten(nMatrix));
 
-  gl.drawArrays(gl.TRIANGLE_FAN, 0, circle.numPoints);
+  gl.uniform4fv(circleProgram.colorLoc, flatten(vec4(1.0, 1.0, 1.0, 1.0)));
+  gl.drawArrays(gl.TRIANGLE_FAN, 0, circle.numCirclePoints);
+
+  gl.uniform4fv(circleProgram.colorLoc, flatten(vec4(0.2, 0.2, 0.2, 1.0)));
+  gl.drawArrays(gl.TRIANGLE_FAN,
+                circle.numCirclePoints, 4);
+  gl.drawArrays(gl.TRIANGLES, circle.numCirclePoints + 4, 3);
+};
+
+function renderForceArrow(p, f) {
+  gl.useProgram(flatProgram.program);
+
+  gl.enableVertexAttribArray(flatProgram.vertexLoc);
+  gl.bindBuffer(gl.ARRAY_BUFFER, forceArrow.vertexBuffer);
+  gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
+
+  nMatrix = normalMatrix(mvMatrix, false);
+
+  gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
+  gl.uniformMatrix4fv(flatProgram.nMatrixLoc, false, flatten(nMatrix));
+
+  gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(1.0, 0.0, 0.0, 1.0)));
+
+  const magScale = 5000000;
+  // const mag = Math.log(magScale * length(f));
+  const mag = 100 * Math.pow(length(f), 1/4);
+
+  pushMatrix();
+  // get in position
+  mvMatrix = mult(mvMatrix, translate(p[0], p[1], p[2]));
+  // global scale
+  const gs = 0.08;
+  mvMatrix = mult(mvMatrix, scalem(gs, gs, 1));
+  // rotation
+  mvMatrix = mult(mvMatrix, rotateZ(degrees(Math.atan2(f[1], f[0]))));
+  // translate outside of circle
+  mvMatrix = mult(mvMatrix, translate(1, 0, 0));
+
+  pushMatrix();
+  // (1 - aw) * f = (mag - aw)
+  // f = (mag - aw)/(1 - aw)
+  const s = (mag - forceArrow.arrowWidth) / (1.0 - forceArrow.arrowWidth);
+  mvMatrix = mult(mvMatrix, scalem(s, 1, 1));
+  gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
+  gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+  popMatrix();
+
+  pushMatrix();
+  mvMatrix = mult(mvMatrix, translate(mag-forceArrow.arrowWidth, 0, 0));
+  gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
+  gl.drawArrays(gl.TRIANGLES, 4, 3);
+  popMatrix();
+
+  popMatrix();
+};
+
+function renderTorqueArrow(p, t) {
+  gl.useProgram(flatProgram.program);
+
+  gl.enableVertexAttribArray(flatProgram.vertexLoc);
+  gl.bindBuffer(gl.ARRAY_BUFFER, torqueArrow.vertexBuffer);
+  gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
+
+  nMatrix = normalMatrix(mvMatrix, false);
+
+  gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
+  gl.uniformMatrix4fv(flatProgram.nMatrixLoc, false, flatten(nMatrix));
+
+  // gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(0.0, 0.0, 1.0, 1.0)));
+  gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(0.3, 0.3, 1.0, 1.0)));
+  // gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(0.0, 0.7, 0.0, 1.0)));
+
+  const magScale = 20;
+  const mag = magScale * Math.pow(length(t), 1/3);
+
+  const deg = Math.min(358, 360 * mag);
+
+  pushMatrix();
+  // get in position
+  mvMatrix = mult(mvMatrix, translate(p[0], p[1], p[2]));
+  // global scale
+  const gs = 0.08;
+  mvMatrix = mult(mvMatrix, scalem(gs, gs, 1));
+  // // rotation
+  // mvMatrix = mult(mvMatrix, rotateZ(degrees(Math.atan2(f[1], f[0]))));
+  // // translate outside of circle
+  // mvMatrix = mult(mvMatrix, translate(1, 0, 0));
+
+  if (t[2] < 0) {
+    mvMatrix = mult(mvMatrix, scalem(1, -1, 1));
+  }
+
+  // pushMatrix();
+  // (1 - aw) * f = (mag - aw)
+  // f = (mag - aw)/(1 - aw)
+  // const s = (mag - forceArrow.arrowWidth) / (1.0 - forceArrow.arrowWidth);
+  // mvMatrix = mult(mvMatrix, scalem(s, 1, 1));
+  gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 1 + Math.floor(deg) * 2);
+  // popMatrix();
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, forceArrow.vertexBuffer);
+  gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
+  mvMatrix = mult(mvMatrix, rotateZ(deg));
+  mvMatrix = mult(mvMatrix, translate(torqueArrow.r, 0, 0));
+  mvMatrix = mult(mvMatrix, rotateZ(90));
+  gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
+  gl.drawArrays(gl.TRIANGLES, 4, 3);
+
+  popMatrix();
 };
 
 function renderTexture() {
@@ -236,6 +348,36 @@ function BSum(r) {
   return sum;
 }
 
+// Force of dipole m_i on dipole m_j.
+// Equation 8 of the paper.
+function F(i, j) {
+  const Rij = subtract(positions[j], positions[i]);
+  const Rij_mag = length(Rij);
+  const mi = positions[i].m;
+  const mj = positions[j].m;
+  const c = 3 * MU0 / (4 * Math.PI * Math.pow(Rij_mag, 5));
+  const n1 = mult(vec3c(dot(mi, Rij)), mj);
+  const n2 = mult(vec3c(dot(mj, Rij)), mi);
+  const n3 = mult(vec3c(dot(mi, mj)), Rij);
+  const n4 = mult(vec3c(5 * dot(mi, Rij) * dot(mj, Rij) / Math.pow(Rij_mag, 2)),
+                  Rij);
+  return mult(vec3c(c), add(n1, add(n2, subtract(n3, n4))));
+}
+
+// Torque of dipole m_i on dipole m_j.
+// Equation 10 of the paper.
+function T(i, j) {
+  const Rij = subtract(positions[j], positions[i]);
+  const Rij_mag = length(Rij);
+  const mi = positions[i].m;
+  const mj = positions[j].m;
+  const c = MU0 / (4 * Math.PI);
+  const cn1 = 3 * dot(mi, Rij) / Math.pow(Rij_mag, 5);
+  const n1 = mult(vec3c(cn1), cross(mj, Rij));
+  const n2 = mult(cross(mj, mi), vec3c(1/Math.pow(Rij_mag, 3)));
+  return mult(vec3c(c), subtract(n1, n2));
+}
+
 function updatePositions() {
   // console.log(B(positions[0].m, vec3(0.1, 0, 0)));
   // console.log(B(positions[0].m, vec3(0.5, 0, 0)));
@@ -243,6 +385,9 @@ function updatePositions() {
   // console.log(B(positions[0].m, vec3(2, 0, 0)));
   // for (var i = 0; i < positions.length; ++i) {
   //   console.log(B(positions[i].m, vec3(2, 0, 0)));
+  // }
+  // if (positions.length > 1) {
+  //   console.log(F(0, 1));
   // }
 }
 
@@ -394,7 +539,14 @@ function render() {
   // renderTextures();
   // renderSpheres();
   renderCircles();
-  // renderMagneticField();
+  renderMagneticField();
+
+  var f = F(0, 1);
+  var t = T(0, 1);
+  // console.log(t);
+  // console.log(length(t));
+  renderForceArrow(positions[1], f);
+  renderTorqueArrow(positions[1], t);
 }
 
 function keyDown(e) {
@@ -437,7 +589,8 @@ function keyDown(e) {
 function onMouseClick(e) {
   var p = win2obj(vec2(e.clientX, e.clientY));
   if (length(subtract(p, mouseDownPos)) < 0.01) {
-    addPoint(p);
+    // addPoint(p);
+    movePoint(p, 1);
   }
 }
 
@@ -466,24 +619,21 @@ function onMouseUp() {
 }
 
 function onMouseMove(e) {
-  //-----------------
-  // Disable arcball
-  //-----------------
-  return;
-
   mousePos = win2obj(vec2(e.clientX, e.clientY));
 
   if (mouseDown && mouseDownPos != mousePos) {
-    // if (button == LEFT_BUTTON) {
-    if (!zooming) {
-      const down_v = mapMouse(mouseDownPos);
-      const v = mapMouse(mousePos);
-      rotVec = normalize(cross(down_v, v));
-      rotAngle = Math.acos(dot(down_v, v) / length(v));
-    } else {
-      const factor = 2;
-      zoom = downZoom * Math.pow(factor, mousePos[1] - mouseDownPos[1]);
-    }
+    movePoint(mousePos, 1);
+
+    // arcball
+    // if (!zooming) {
+    //   const down_v = mapMouse(mouseDownPos);
+    //   const v = mapMouse(mousePos);
+    //   rotVec = normalize(cross(down_v, v));
+    //   rotAngle = Math.acos(dot(down_v, v) / length(v));
+    // } else {
+    //   const factor = 2;
+    //   zoom = downZoom * Math.pow(factor, mousePos[1] - mouseDownPos[1]);
+    // }
     render();
   }
 }
@@ -510,6 +660,12 @@ function win2obj(p) {
   // x = Math.max(Math.min(x, 1.0), -1.0);
   // y = Math.max(Math.min(y, 1.0), -1.0);
   return vec2(x, y);
+}
+
+function movePoint(p, i) {
+  positions[i] = vec3(p[0], p[1], 0);
+  positions[i].m = normalize(vec3(1, 0, 0));
+  tick();
 }
 
 function addPoint(p) {
@@ -578,6 +734,7 @@ window.onload = function init() {
   //  Load shaders and initialize attribute buffers
   lineProgram = new LineProgram();
   circleProgram = new CircleProgram();
+  flatProgram = new FlatProgram();
   sphereProgram = new SphereProgram();
   textureProgram = new TextureProgram();
 
@@ -592,15 +749,14 @@ window.onload = function init() {
   sphereMesh = new SphereMesh(1, 200, 200);
   square = new Square();
   circle = new Circle();
+  forceArrow = new ForceArrow();
+  torqueArrow = new TorqueArrow();
 
   positions.push(vec3(0, 0, 0));
   positions[0].m = vec3(1, 0, 0);;
 
-  // positions.push(vec3(0.75, 0.75, 0));
-  // positions[1].m = normalize(vec3(0, 1, 0));
-
-  // positions.push(vec3(0.5, 0.5, 0));
-  // positions[1].m = normalize(vec3(0, 1, 0));
+  positions.push(vec3(0.75, 0.75, 0));
+  positions[1].m = normalize(vec3(0, 1, 0));
 
   // positions.push(vec3(-0.75, 0.25, 0));
   // positions[2].m = normalize(vec3(1, 1, 0));

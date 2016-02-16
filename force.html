@@ -169,13 +169,16 @@
     uniform mat4 pMatrix;
     uniform mat4 nMatrix;
 
+    uniform vec4 color;
+
     void main() {
       float z = sqrt(1.0 - lPosition.x*lPosition.x - lPosition.y*lPosition.y);
       vec4 vNormal = vec4(lPosition.xy, z, 1.0);
 
       // Change to white if desired
       // vec4 lColor = fColor;
-      vec4 lColor = vec4(1.0, 1.0, 1.0, 1.0);
+      // vec4 lColor = vec4(1.0, 1.0, 1.0, 1.0);
+      vec4 lColor = color;
 
       // Material properties
       vec3 ka = vec3(0.3, 0.3, 0.3) * lColor.xyz;
@@ -222,6 +225,30 @@
   </script>
   
   <!------------------------------------------------------------>
+  <!---------------------- Flat shaders ---------------------->
+  <!------------------------------------------------------------>
+
+  <script id="flat-vshader" type="x-shader/x-vertex">
+    attribute vec4 vPosition;
+    
+    uniform mat4 mvMatrix;
+    uniform mat4 pMatrix;
+    uniform mat4 nMatrix;
+    
+    void main() {
+      gl_Position = pMatrix*mvMatrix*vPosition;
+    } 
+  </script>
+
+  <script id="flat-fshader" type="x-shader/x-fragment">
+    precision highp float;
+    uniform vec4 color;
+    void main() {
+      gl_FragColor = color;
+    }
+  </script>
+  
+  <!------------------------------------------------------------>
   <!---------------------- Texture shaders --------------------->
   <!------------------------------------------------------------>
 
@@ -253,6 +280,7 @@
     uniform sampler2D texture;
 
     void main() {
+      // gl_FragColor = vec4(2.0, 2.0, 2.0. 1.0) * texture2D( texture, fTexCoord );
       gl_FragColor = texture2D( texture, fTexCoord );
       // gl_FragColor = fColor * texture2D( texture, fTexCoord );
       // gl_FragColor = vec4(1.0, 1.0, 0.3, 1.0) * texture2D( texture, fTexCoord );
@@ -272,6 +300,8 @@
   <script type="text/javascript" src="axis.js"></script>
   <script type="text/javascript" src="sphereMesh.js"></script>
   <script type="text/javascript" src="circle.js"></script>
+  <script type="text/javascript" src="forceArrow.js"></script>
+  <script type="text/javascript" src="torqueArrow.js"></script>
   <script type="text/javascript" src="square.js"></script>
   <script type="text/javascript" src="floor.js"></script>
   <script type="text/javascript" src="arrow.js"></script>
