@@ -10,7 +10,7 @@ var axis;
 var floor;
 var arrow;
 var segment;
-var sphereMesh;
+var sphere;
 var circle;
 var forceArrow;
 var torqueArrow;
@@ -57,6 +57,11 @@ function pushMatrix() {
 }
 function popMatrix() {
   mvMatrix = matrixStack.pop();
+}
+
+var Dipole = function(p, m) {
+  this.p = p;
+  this.m = m;
 }
 
 function renderAxis() {
@@ -131,15 +136,15 @@ function renderSphere() {
   gl.useProgram(sphereProgram.program);
 
   gl.enableVertexAttribArray(sphereProgram.vertexLoc);
-  gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.vertexBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, sphere.vertexBuffer);
   gl.vertexAttribPointer(sphereProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
 
   gl.enableVertexAttribArray(sphereProgram.normalLoc);
-  gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.normalBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, sphere.normalBuffer);
   gl.vertexAttribPointer(sphereProgram.normalLoc, 4, gl.FLOAT, false, 0, 0);
 
   gl.enableVertexAttribArray(sphereProgram.colorLoc);
-  gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.colorBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, sphere.colorBuffer);
   gl.vertexAttribPointer(sphereProgram.colorLoc, 4, gl.FLOAT, false, 0, 0);
 
   nMatrix = normalMatrix(mvMatrix, false);
@@ -148,8 +153,8 @@ function renderSphere() {
   gl.uniformMatrix4fv(sphereProgram.pMatrixLoc, false, flatten(pMatrix));
   gl.uniformMatrix4fv(sphereProgram.nMatrixLoc, false, flatten(nMatrix));
 
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereMesh.indexBuffer);
-  gl.drawElements(gl.TRIANGLES, sphereMesh.numIndices, gl.UNSIGNED_SHORT, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphere.indexBuffer);
+  gl.drawElements(gl.TRIANGLES, sphere.numIndices, gl.UNSIGNED_SHORT, 0);
 };
 
 function renderCircle() {
@@ -292,29 +297,10 @@ function renderTexture() {
   gl.bindBuffer(gl.ARRAY_BUFFER, square.tBuffer);
   gl.vertexAttribPointer(textureProgram.texCoordLoc, 2, gl.FLOAT, false, 0, 0);
 
-
-
-
-  // gl.enableVertexAttribArray(sphereProgram.vertexLoc);
-  // gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.vertexBuffer);
-  // gl.vertexAttribPointer(sphereProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
-
-  // gl.enableVertexAttribArray(sphereProgram.normalLoc);
-  // gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.normalBuffer);
-  // gl.vertexAttribPointer(sphereProgram.normalLoc, 4, gl.FLOAT, false, 0, 0);
-
-  // gl.enableVertexAttribArray(sphereProgram.colorLoc);
-  // gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.colorBuffer);
-  // gl.vertexAttribPointer(sphereProgram.colorLoc, 4, gl.FLOAT, false, 0, 0);
-
-  // nMatrix = normalMatrix(mvMatrix, false);
-
   gl.uniformMatrix4fv(textureProgram.mvMatrixLoc, false, flatten(mvMatrix));
   gl.uniformMatrix4fv(textureProgram.pMatrixLoc, false, flatten(pMatrix));
 
-  // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, square.indexBuffer);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, square.numVertices);
-  // gl.drawElements(gl.TRIANGLES, sphereMesh.numIndices, gl.UNSIGNED_SHORT, 0);
 };
 
 // Permeability of free space in a vacuum
@@ -339,7 +325,7 @@ function B(m, r) {
 function BSum(r) {
   var sum = 0;
   for (var i = 0; i < dipoles.length; ++i) {
-    var v = B(dipoles[i].m, subtract(r, dipoles[i]));
+    var v = B(dipoles[i].m, subtract(r, dipoles[i].p));
     if (v != 0) {
       if (sum == 0) {
         sum = v;
@@ -354,7 +340,7 @@ function BSum(r) {
 // Force of dipole m_i on dipole m_j.
 // Equation 8 of the paper.
 function F(i, j) {
-  const Rij = subtract(dipoles[j], dipoles[i]);
+  const Rij = subtract(dipoles[j].p, dipoles[i].p);
   const Rij_mag = length(Rij);
   const mi = dipoles[i].m;
   const mj = dipoles[j].m;
@@ -376,7 +362,7 @@ function F(i, j) {
 // Torque of dipole m_i on dipole m_j.
 // Equation 10 of the paper.
 function T(i, j) {
-  const Rij = subtract(dipoles[j], dipoles[i]);
+  const Rij = subtract(dipoles[j].p, dipoles[i].p);
   const Rij_mag = length(Rij);
   const mi = dipoles[i].m;
   const mj = dipoles[j].m;
@@ -397,10 +383,10 @@ function updatePositions() {
   var f = F(0, 1);
   var t = T(0, 1);
 
-  var m = dipoles[1].m;
+  // var m = dipoles[1].m;
   
-  dipoles[1] = add(dipoles[1], mult(vec3c(10000), f));
-  dipoles[1].m = m;
+  dipoles[1].p = add(dipoles[1].p, mult(vec3c(10000), f));
+  // dipoles[1].m = m;
 }
 
 function tick() {
@@ -423,7 +409,7 @@ function renderTextures() {
 
   for (var i = 0; i < dipoles.length; i++) { 
     pushMatrix();
-    mvMatrix = mult(mvMatrix, translate(dipoles[i]));
+    mvMatrix = mult(mvMatrix, translate(dipoles[i].p));
     var phi = Math.acos(dot(vec3(1, 0, 0), dipoles[i].m));
     if (phi != 0) {
       var axis = cross(vec3(1, 0, 0), dipoles[i].m);
@@ -440,7 +426,7 @@ function renderCircles() {
   const s = 0.08;
   for (var i = 0; i < dipoles.length; i++) { 
     pushMatrix();
-    mvMatrix = mult(mvMatrix, translate(dipoles[i]));
+    mvMatrix = mult(mvMatrix, translate(dipoles[i].p));
     var phi = Math.acos(dot(vec3(1, 0, 0), dipoles[i].m));
     if (phi != 0) {
       var axis = cross(vec3(1, 0, 0), dipoles[i].m);
@@ -458,7 +444,7 @@ function renderSpheres() {
   const s = 0.08;
   for (var i = 0; i < dipoles.length; i++) { 
     pushMatrix();
-    mvMatrix = mult(mvMatrix, translate(dipoles[i]));
+    mvMatrix = mult(mvMatrix, translate(dipoles[i].p));
     var phi = Math.acos(dot(vec3(1, 0, 0), dipoles[i].m));
     if (phi != 0) {
       var axis = cross(vec3(1, 0, 0), dipoles[i].m);
@@ -485,7 +471,7 @@ function renderMagneticField(origin) {
       var p = vec3(x, y, 0);
       // var v = B(dipoles[0].m, p);
       // var v = BSum(p);
-      var v = B(dipoles[0].m, subtract(p, dipoles[0]));
+      var v = B(dipoles[0].m, subtract(p, dipoles[0].p));
       if (v != 0) {
         pushMatrix();
         mvMatrix = mult(mvMatrix, translate(p));
@@ -557,15 +543,15 @@ function render() {
   // renderSpheres();
   renderCircles();
   if (showB) {
-    renderMagneticField(dipoles[1]);
+    renderMagneticField(dipoles[1].p);
   }
 
   var f = F(0, 1);
   var t = T(0, 1);
   // console.log(t);
   // console.log(length(t));
-  renderForceArrow(dipoles[1], f);
-  renderTorqueArrow(dipoles[1], t);
+  renderForceArrow(dipoles[1].p, f);
+  renderTorqueArrow(dipoles[1].p, t);
 }
 
 function keyDown(e) {
@@ -653,7 +639,7 @@ function onMouseMove(e) {
   if (mouseDown && mouseDownPos != mousePos) {
     if (e.shiftKey) {
       var p = vec3(mousePos[0], mousePos[1], 0.0);
-      dipoles[1].m = normalize(subtract(p, dipoles[1]));
+      dipoles[1].m = normalize(subtract(p, dipoles[1].p));
     } else {
       movePoint(mousePos, 1);
     }
@@ -698,7 +684,7 @@ function win2obj(p) {
 
 function movePoint(p, i) {
   var m = dipoles[i].m;
-  dipoles[i] = vec3(p[0], p[1], 0);
+  dipoles[i].p = vec3(p[0], p[1], 0);
   dipoles[i].m = m;
   render();
 }
@@ -774,27 +760,20 @@ window.onload = function init() {
   textureProgram = new TextureProgram();
 
   var image = document.getElementById("dipoleFieldImage");
-  // var image = document.getElementById("dipoleImage");
   configureTexture(image);
 
   axis = new Axis();
   floor = new Floor();
   arrow = new Arrow();
   segment = new Segment();
-  sphereMesh = new SphereMesh(1, 200, 200);
+  sphere = new Sphere(1, 200, 200);
   square = new Square();
   circle = new Circle();
   forceArrow = new ForceArrow();
   torqueArrow = new TorqueArrow();
 
-  dipoles.push(vec3(0, 0, 0));
-  dipoles[0].m = vec3(1, 0, 0);;
-
-  dipoles.push(vec3(0.75, 0.75, 0));
-  dipoles[1].m = normalize(vec3(0, 1, 0));
-
-  // dipoles.push(vec3(-0.75, 0.25, 0));
-  // dipoles[2].m = normalize(vec3(1, 1, 0));
+  dipoles.push(new Dipole(vec3(0, 0, 0), vec3(1, 0, 0)));
+  dipoles.push(new Dipole(vec3(0.75, 0.75, 0), vec3(0, 1, 0)));
 
   render();
 }

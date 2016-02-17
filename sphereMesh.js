@@ -1,4 +1,4 @@
-var SphereMesh = function(radius, latitudeBands, longitudeBands) {
+var Sphere = function(radius, latitudeBands, longitudeBands) {
   // Set up vertices, normals and texture coords
   var pointsArray = [];
   var colorsArray = [];
