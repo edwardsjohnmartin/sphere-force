@@ -15,7 +15,7 @@ var circle;
 var forceArrow;
 var torqueArrow;
 var square;
-var positions = new Array();
+var dipoles = new Array();
 
 var lineProgram;
 var circleProgram;
@@ -46,6 +46,9 @@ var zoom = 1;
 var downZoom = 1;
 const LEFT_BUTTON = 0;
 const RIGHT_BUTTON = 2;
+
+// What to render
+var showB = false;
 
 // Stack stuff
 var matrixStack = new Array();
@@ -335,8 +338,8 @@ function B(m, r) {
 
 function BSum(r) {
   var sum = 0;
-  for (var i = 0; i < positions.length; ++i) {
-    var v = B(positions[i].m, subtract(r, positions[i]));
+  for (var i = 0; i < dipoles.length; ++i) {
+    var v = B(dipoles[i].m, subtract(r, dipoles[i]));
     if (v != 0) {
       if (sum == 0) {
         sum = v;
@@ -351,11 +354,17 @@ function BSum(r) {
 // Force of dipole m_i on dipole m_j.
 // Equation 8 of the paper.
 function F(i, j) {
-  const Rij = subtract(positions[j], positions[i]);
+  const Rij = subtract(dipoles[j], dipoles[i]);
   const Rij_mag = length(Rij);
-  const mi = positions[i].m;
-  const mj = positions[j].m;
+  const mi = dipoles[i].m;
+  const mj = dipoles[j].m;
+
+  // Use this constant if using dimensions
   const c = 3 * MU0 / (4 * Math.PI * Math.pow(Rij_mag, 5));
+
+  // Use this constant if using dimensionless coordinates
+  // const c = 1 / (2 * Math.pow(Rij_mag, 5));
+
   const n1 = mult(vec3c(dot(mi, Rij)), mj);
   const n2 = mult(vec3c(dot(mj, Rij)), mi);
   const n3 = mult(vec3c(dot(mi, mj)), Rij);
@@ -367,11 +376,17 @@ function F(i, j) {
 // Torque of dipole m_i on dipole m_j.
 // Equation 10 of the paper.
 function T(i, j) {
-  const Rij = subtract(positions[j], positions[i]);
+  const Rij = subtract(dipoles[j], dipoles[i]);
   const Rij_mag = length(Rij);
-  const mi = positions[i].m;
-  const mj = positions[j].m;
+  const mi = dipoles[i].m;
+  const mj = dipoles[j].m;
+
+  // Use this constant if using dimensions
   const c = MU0 / (4 * Math.PI);
+
+  // Use this constant if using dimensionless coordinates
+  // const c = 1 / 6;
+
   const cn1 = 3 * dot(mi, Rij) / Math.pow(Rij_mag, 5);
   const n1 = mult(vec3c(cn1), cross(mj, Rij));
   const n2 = mult(cross(mj, mi), vec3c(1/Math.pow(Rij_mag, 3)));
@@ -379,16 +394,13 @@ function T(i, j) {
 }
 
 function updatePositions() {
-  // console.log(B(positions[0].m, vec3(0.1, 0, 0)));
-  // console.log(B(positions[0].m, vec3(0.5, 0, 0)));
-  // console.log(B(positions[0].m, vec3(1, 0, 0)));
-  // console.log(B(positions[0].m, vec3(2, 0, 0)));
-  // for (var i = 0; i < positions.length; ++i) {
-  //   console.log(B(positions[i].m, vec3(2, 0, 0)));
-  // }
-  // if (positions.length > 1) {
-  //   console.log(F(0, 1));
-  // }
+  var f = F(0, 1);
+  var t = T(0, 1);
+
+  var m = dipoles[1].m;
+  
+  dipoles[1] = add(dipoles[1], mult(vec3c(10000), f));
+  dipoles[1].m = m;
 }
 
 function tick() {
@@ -409,12 +421,12 @@ function renderTextures() {
   // renderTexture();
   popMatrix();
 
-  for (var i = 0; i < positions.length; i++) { 
+  for (var i = 0; i < dipoles.length; i++) { 
     pushMatrix();
-    mvMatrix = mult(mvMatrix, translate(positions[i]));
-    var phi = Math.acos(dot(vec3(1, 0, 0), positions[i].m));
+    mvMatrix = mult(mvMatrix, translate(dipoles[i]));
+    var phi = Math.acos(dot(vec3(1, 0, 0), dipoles[i].m));
     if (phi != 0) {
-      var axis = cross(vec3(1, 0, 0), positions[i].m);
+      var axis = cross(vec3(1, 0, 0), dipoles[i].m);
       mvMatrix = mult(mvMatrix, rotate(degrees(phi), axis));
     }
     mvMatrix = mult(mvMatrix, scalem(df, df, 1));
@@ -426,12 +438,12 @@ function renderTextures() {
 function renderCircles() {
   pushMatrix();
   const s = 0.08;
-  for (var i = 0; i < positions.length; i++) { 
+  for (var i = 0; i < dipoles.length; i++) { 
     pushMatrix();
-    mvMatrix = mult(mvMatrix, translate(positions[i]));
-    var phi = Math.acos(dot(vec3(1, 0, 0), positions[i].m));
+    mvMatrix = mult(mvMatrix, translate(dipoles[i]));
+    var phi = Math.acos(dot(vec3(1, 0, 0), dipoles[i].m));
     if (phi != 0) {
-      var axis = cross(vec3(1, 0, 0), positions[i].m);
+      var axis = cross(vec3(1, 0, 0), dipoles[i].m);
       mvMatrix = mult(mvMatrix, rotate(degrees(phi), axis));
     }
     mvMatrix = mult(mvMatrix, scalem(s, s, s));
@@ -444,12 +456,12 @@ function renderCircles() {
 function renderSpheres() {
   pushMatrix();
   const s = 0.08;
-  for (var i = 0; i < positions.length; i++) { 
+  for (var i = 0; i < dipoles.length; i++) { 
     pushMatrix();
-    mvMatrix = mult(mvMatrix, translate(positions[i]));
-    var phi = Math.acos(dot(vec3(1, 0, 0), positions[i].m));
+    mvMatrix = mult(mvMatrix, translate(dipoles[i]));
+    var phi = Math.acos(dot(vec3(1, 0, 0), dipoles[i].m));
     if (phi != 0) {
-      var axis = cross(vec3(1, 0, 0), positions[i].m);
+      var axis = cross(vec3(1, 0, 0), dipoles[i].m);
       mvMatrix = mult(mvMatrix, rotate(degrees(phi), axis));
     }
     mvMatrix = mult(mvMatrix, scalem(s, s, s));
@@ -459,16 +471,21 @@ function renderSpheres() {
   popMatrix();
 }
 
-function renderMagneticField() {
+function renderMagneticField(origin) {
   // Render magnetic field
   pushMatrix();
   const sf = 0.05;
   const inc = 0.08;
-  for (var y = -1.0; y < 1.0; y += inc) {
-    for (var x = -1.0; x < 1.0; x += inc) {
+  const ystart = -1.0;// + (inc*100 % origin[1]*100)/100;
+  const xstart = -1.0;
+  const yend = 1.0;
+  const xend = 1.0;
+  for (var y = ystart; y < yend; y += inc) {
+    for (var x = xstart; x < xend; x += inc) {
       var p = vec3(x, y, 0);
-      // var v = B(positions[0].m, p);
-      var v = BSum(p);
+      // var v = B(dipoles[0].m, p);
+      // var v = BSum(p);
+      var v = B(dipoles[0].m, subtract(p, dipoles[0]));
       if (v != 0) {
         pushMatrix();
         mvMatrix = mult(mvMatrix, translate(p));
@@ -539,14 +556,16 @@ function render() {
   // renderTextures();
   // renderSpheres();
   renderCircles();
-  renderMagneticField();
+  if (showB) {
+    renderMagneticField(dipoles[1]);
+  }
 
   var f = F(0, 1);
   var t = T(0, 1);
   // console.log(t);
   // console.log(length(t));
-  renderForceArrow(positions[1], f);
-  renderTorqueArrow(positions[1], t);
+  renderForceArrow(dipoles[1], f);
+  renderTorqueArrow(dipoles[1], t);
 }
 
 function keyDown(e) {
@@ -562,6 +581,16 @@ function keyDown(e) {
     break;
   case 40:
     // down arrow
+    break;
+  case "N".charCodeAt(0):
+    tick();
+    break;
+  case "P".charCodeAt(0):
+    tick();
+    break;
+  case "M".charCodeAt(0):
+    showB = !showB;
+    render();
     break;
   case "X".charCodeAt(0):
     view = "X";
@@ -622,7 +651,12 @@ function onMouseMove(e) {
   mousePos = win2obj(vec2(e.clientX, e.clientY));
 
   if (mouseDown && mouseDownPos != mousePos) {
-    movePoint(mousePos, 1);
+    if (e.shiftKey) {
+      var p = vec3(mousePos[0], mousePos[1], 0.0);
+      dipoles[1].m = normalize(subtract(p, dipoles[1]));
+    } else {
+      movePoint(mousePos, 1);
+    }
 
     // arcball
     // if (!zooming) {
@@ -663,15 +697,16 @@ function win2obj(p) {
 }
 
 function movePoint(p, i) {
-  positions[i] = vec3(p[0], p[1], 0);
-  positions[i].m = normalize(vec3(1, 0, 0));
-  tick();
+  var m = dipoles[i].m;
+  dipoles[i] = vec3(p[0], p[1], 0);
+  dipoles[i].m = m;
+  render();
 }
 
 function addPoint(p) {
-  positions.push(vec3(p[0], p[1], 0));
-  positions[positions.length-1].m = normalize(vec3(1, 0, 0));
-  tick();
+  dipoles.push(vec3(p[0], p[1], 0));
+  dipoles[dipoles.length-1].m = normalize(vec3(1, 0, 0));
+  render();
 }
 
 function resize(canvas) {
@@ -752,14 +787,14 @@ window.onload = function init() {
   forceArrow = new ForceArrow();
   torqueArrow = new TorqueArrow();
 
-  positions.push(vec3(0, 0, 0));
-  positions[0].m = vec3(1, 0, 0);;
+  dipoles.push(vec3(0, 0, 0));
+  dipoles[0].m = vec3(1, 0, 0);;
 
-  positions.push(vec3(0.75, 0.75, 0));
-  positions[1].m = normalize(vec3(0, 1, 0));
+  dipoles.push(vec3(0.75, 0.75, 0));
+  dipoles[1].m = normalize(vec3(0, 1, 0));
 
-  // positions.push(vec3(-0.75, 0.25, 0));
-  // positions[2].m = normalize(vec3(1, 1, 0));
+  // dipoles.push(vec3(-0.75, 0.25, 0));
+  // dipoles[2].m = normalize(vec3(1, 1, 0));
 
-  tick();
+  render();
 }
