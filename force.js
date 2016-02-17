@@ -1,9 +1,19 @@
 "use strict";
 
-var dimensionless = true;
 // diameter
+// const D = 1;
 const D = 0.16;
-// var fixMoment = false;
+// radius
+const r = D/2;
+// frustum height. Frustum width will be computed using the height
+// and aspect ratio of the viewport. The frustum will be centered
+// at the origin.
+const frustumDim = D;
+// initial position of free dipole
+const initFreeP = vec3(0.0, 0.75, 0);
+const initFreeM = vec3(1, 0, 0);
+
+var dimensionless = true;
 
 var canvas;
 var canvasWidth, canvasHeight;
@@ -629,23 +639,16 @@ function render() {
 
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  const fovy = 40.0;
-  const near = 0.01;
-  const far = 100;
-  const radius = 5;
   const at = vec3(0.0, 0.0, 0.0);
   var up = vec3(0.0, 1.0, 0.0);
   var eye = vec3(0, 0, 1);
 
-  // pMatrix = perspective(fovy, aspect, near, far);
-  const tw = 2.3;
-  // var fh = tw;
-  // var fw = fh * aspect;
-  fh = tw;
-  fw = fh * aspect;
-  if (aspect < 1) {
-    fw = tw;
-    fh = fw / aspect;
+  if (canvas.width > canvas.height) {
+    fh = frustumDim;
+    fw = (fh*canvas.width)/canvas.height;
+  } else {
+    fw = frustumDim;
+    fh = (fw*canvas.height)/canvas.width;
   }
   pMatrix = ortho(0-fw/2, fw/2, 0-fh/2, fh/2, 0, 2);
 
@@ -654,14 +657,6 @@ function render() {
     mvMatrix = mult(mvMatrix, rotate(rotAngle*180.0/Math.PI, rotVec));
   }
   mvMatrix = mult(mvMatrix, rotMatrix);
-
-  // gl.enable(gl.BLEND);
-  // // gl.blendFunc(gl.ONE, gl.ZERO);
-  // // gl.blendFunc(gl.ZERO, gl.ONE);
-  // // gl.blendFunc(gl.SRC_ALPHA, gl.DEST_ALPHA);
-  // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-  // renderFloor();
 
   pushMatrix();
   mvMatrix = mult(mvMatrix, scalem(dff, dff, 1));
@@ -889,7 +884,7 @@ function reset() {
   dipoles = [];
   dipoles.push(new Dipole(vec3(0, 0, 0), vec3(1, 0, 0), true));
   // dipoles.push(new Dipole(vec3(0.25, 0.75, 0), vec3(0, 1, 0), false));
-  dipoles.push(new Dipole(vec3(0.0, 0.75, 0), vec3(0, 1, 0), false));
+  dipoles.push(new Dipole(initFreeP, initFreeM, false));
 }
 
 window.onload = function init() {
