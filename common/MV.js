@@ -348,7 +348,7 @@ function mult( u, v )
 
     return result;
   }
-  else {
+  else if (Array.isArray(u) && Array.isArray(v)) {
     if ( u.length != v.length ) {
       throw "mult(): vectors are not the same dimension";
     }
@@ -357,6 +357,16 @@ function mult( u, v )
       result.push( u[i] * v[i] );
     }
 
+    return result;
+  } else if (Array.isArray(u)) {
+    for (var i = 0; i < u.length; ++i) {
+      result.push(u[i] * v);
+    }
+    return result;
+  } else if (Array.isArray(v)) {
+    for (var i = 0; i < v.length; ++i) {
+      result.push(v[i] * u);
+    }
     return result;
   }
 }
