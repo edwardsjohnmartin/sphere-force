@@ -73,8 +73,18 @@ const RIGHT_BUTTON = 2;
 // What to render
 var showB = false;
 
-var debugValues = new Object();
 var showDebug = true;
+var debugValues = new Object();
+var debugLabels = new Object();
+debugLabels.w = "&omega;";
+debugLabels.w_at_zero_crossing = "&omega; at zero crossing";
+debugLabels.F_mag = "|F|";
+debugLabels.T_mag = "|T|";
+debugLabels.m = "m (&deg;)";
+debugLabels.elapsed_time = "t";
+debugLabels.time_step = "&Delta;t";
+debugLabels.v_at_collision = "v at collision";
+debugLabels.time_at_zero_crossing = "t at zero crossing";
 
 // Stack stuff
 var matrixStack = new Array();
@@ -495,7 +505,7 @@ function updatePositions() {
   var simSpeed = document.getElementById("simSpeed").value;
 
   var dt = simSpeed * 1/10000;
-  debugValues.time_step = dt.toFixed(4);
+  // debugValues.time_step = dt.toFixed(4);
   elapsedTime += dt;
 
   // 4th order runge-kutta
@@ -515,7 +525,7 @@ function updatePositions() {
 
     if ((oldTheta < 0 && newTheta > 0) ||
         (oldTheta > 0 && newTheta < 0)) {
-      debugValues.av_at_zero_crossing = dipoles[1].av.toFixed(4);
+      debugValues.w_at_zero_crossing = dipoles[1].av.toFixed(4);
       debugValues.time_at_zero_crossing = elapsedTime.toFixed(4);
     }
   }
@@ -525,55 +535,69 @@ function updatePositions() {
   //----------------------------------------
 
   if (updateP && !dipoles[1].fixed) {
+    var R01 = subtract(dipoles[1].p, dipoles[0].p);
+    var sep = length(R01);
+    var touching = Math.abs(sep - D) < 0.00000001;
+
     var dx = subtract(rk.p, dipoles[1].p);
     var v = rk.v;
 
     dipoles[1].v = v;
     
-    // Find the distance a from the center of the fixed dipole
-    // to the displacement line.
-    //
-    //         u  ____ c0
-    //       ____/
-    //   c1 /_________ c1+dx
-    //           w
+    if (!touching) {
+      // Find the distance a from the center of the fixed dipole
+      // to the displacement line.
+      //
+      //         u  ____ c0
+      //       ____/
+      //   c1 /_________ c1+dx
+      //           w
 
-    var c0 = dipoles[0].p;
-    var c1 = dipoles[1].p;
-    var u = subtract(c0, c1);
-    var w = dx;
+      var c0 = dipoles[0].p;
+      var c1 = dipoles[1].p;
+      var u = subtract(c0, c1);
+      var w = dx;
 
-    var dist;
-    var shadow = dot(u, w)/length(w);
-    if (shadow > length(w)) {
-      dist = length(subtract(c0, add(c1, dx)));
-    } else if (shadow < 0) {
-      dist = length(subtract(c0, c1));
+      var dist;
+      var shadow = dot(u, w)/length(w);
+      if (shadow > length(w)) {
+        dist = length(subtract(c0, add(c1, dx)));
+      } else if (shadow < 0) {
+        dist = length(subtract(c0, c1));
+      } else {
+        dist = length(cross(u, w)) / length(dx);
+      }
+
+      if (dist < D) {
+        // Change dx such that dipole runs into other dipole.
+        var x0 = c0[0];
+        var y0 = c0[1];
+        var x1 = c1[0];
+        var y1 = c1[1];
+        var xw = w[0];
+        var yw = w[1];
+        // a, b and c for quadratic equation
+        var qa = xw*xw + yw*yw;
+        var qb = 2 * (x1*xw-x0*xw) + 2 * (y1*yw-y0*yw);
+        var qc = x1*x1-2*x1*x0+x0*x0 + y1*y1-2*y1*y0+y0*y0 - D*D;
+        var qt0 = (-qb + Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
+        var qt1 = (-qb - Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
+        var qt = Math.min(qt0, qt1);
+        dipoles[1].p = add(dipoles[1].p, mult(w, qt));
+        // dipoles[1].fixed = true;
+        dipoles[1].v = vec3(0, 0, 0);
+        debugValues.v_at_collision = length(v).toFixed(5);
+      } else {
+        dipoles[1].p = add(dipoles[1].p, dx);
+      }
     } else {
-      dist = length(cross(u, w)) / length(dx);
-    }
-
-    if (dist < D) {
-      // Change dx such that dipole runs into other dipole.
-      var x0 = c0[0];
-      var y0 = c0[1];
-      var x1 = c1[0];
-      var y1 = c1[1];
-      var xw = w[0];
-      var yw = w[1];
-      // a, b and c for quadratic equation
-      var qa = xw*xw + yw*yw;
-      var qb = 2 * (x1*xw-x0*xw) + 2 * (y1*yw-y0*yw);
-      var qc = x1*x1-2*x1*x0+x0*x0 + y1*y1-2*y1*y0+y0*y0 - D*D;
-      var qt0 = (-qb + Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
-      var qt1 = (-qb - Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
-      var qt = Math.min(qt0, qt1);
-      dipoles[1].p = add(dipoles[1].p, mult(w, qt));
-      dipoles[1].fixed = true;
-      dipoles[1].v = vec3(0, 0, 0);
-      debugValues.v_at_collision = length(v).toFixed(5);
-    } else {
-      dipoles[1].p = add(dipoles[1].p, dx);
+      // touching
+      var tangent = normalize(cross(R01, vec3(0, 0, 1)));
+      v = mult(tangent, dot(v, tangent));
+      dipoles[1].v = v;
+      var newp = add(dipoles[1].p, mult(v, dt));
+      var u = mult(normalize(subtract(newp, dipoles[0].p)), D);
+      dipoles[1].p = add(dipoles[0].p, u);
     }
   }
 
@@ -743,10 +767,14 @@ function render() {
     var first = true;
     for (var property in debugValues) {
       if (debugValues.hasOwnProperty(property)) {
+        var label = property;
+        if (debugLabels.hasOwnProperty(property)) {
+          label = debugLabels[property];
+        }
         if (first) {
-          debug.innerHTML += property + ": " + debugValues[property];
+          debug.innerHTML += label + ": " + debugValues[property];
         } else {
-          debug.innerHTML += "<br>" + property + ": " + debugValues[property];
+          debug.innerHTML += "<br>" + label + ": " + debugValues[property];
         }
         first = false;
       }
@@ -854,21 +882,7 @@ function onMouseClick(e) {
   }
 }
 
-// function onDocumentMouseDown(e) {
-//   if (e.target.id != "gl-canvas") {
-//     // var ae = document.activeElement;
-//     // setTimeout(function() { ae.focus() }, 1);
-//     // document.activeElement = document.body;
-//     // setTimeout(function() { document.body.focus(); }, 1);
-//     // setTimeout(function() { window.focus(); }, 1);
-//     setTimeout(function() { document.activeElement.blur(); }, 1);
-//     // console.log("button");
-//   }
-//     // console.log(e.target);
-// }
-
 function removeFocus() {
-  // setTimeout(function() { document.activeElement.blur(); }, 1);
   document.activeElement.blur();
 }
 

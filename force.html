@@ -411,8 +411,24 @@
           </td>
         </tr>
         <tr>
-          <td colspan="2" align="center"><input type="checkbox" id="updateP" onclick="transRotClicked()" checked>Translate
-      <input type="checkbox" id="updateM" onclick="transRotClicked()" checked>Rotate<br></td>
+          <td colspan="2" align="center">
+            <label>
+              <input
+                 type="checkbox"
+                 id="updateP"
+                 onclick="transRotClicked()"
+                 onfocus="removeFocus()"
+                 checked>Translate
+            </label>
+            <label>
+              <input
+                 type="checkbox"
+                 id="updateM"
+                 onclick="transRotClicked()"
+                 onfocus="removeFocus()"
+                 checked>Rotate<br>
+            </label>
+          </td>
       </table>
 
     </div>
