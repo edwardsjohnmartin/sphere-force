@@ -24,7 +24,7 @@
       left: 10px;
       }
       .number {
-      width: 40px;
+      width: 30px;
       } 
       /* settings window */
       .settings {
@@ -363,20 +363,52 @@
       <table border="0">
         <tr>
           <td align="right">Simulation speed (dt):</td>
-          <td><input type="number" class="number" id="simSpeed" value="2" step="1"/>x10<sup>-4</sup></td>
+          <td><input
+                 type="text"
+                 class="number"
+                 id="simSpeed"
+                 value="2"
+                 step="1"/>x10<sup>-4</sup>
+          </td>
         </tr>
         <tr>
           <td align="right">Animation speed:</td>
-          <td><input type="number" class="number" id="animSpeed" value="500" step="1"/></td>
+          <td><input
+                 type="text"
+                 class="number"
+                 id="animSpeed"
+                 value="500"
+                 step="1"/>
+          </td>
         </tr>
         <tr>
           <td align="right">(x,y):</td>
-          <td>(<input type="number" class="number" id="x" value="1.5" step="0.25" onchange="x0Changed()">,
-          <input type="number" class="number" id="y" value="1.5" step="0.25" onchange="y0Changed()">)</td>
+          <td>
+            (<input
+                  type="text"
+                  class="number"
+                  id="x"
+                  value="1.5"
+                  step="0.25"
+                  onchange="x0Changed()">,
+            <input
+               type="text"
+               class="number"
+               id="y"
+               value="1.5"
+               step="0.25"
+               onchange="y0Changed()">)
+          </td>
         </tr>
         <tr>
           <td align="right">Moment:</td>
-          <td><input type="number" class="number" id="degrees" value="0" onchange="moment0Changed()"> degrees</td>
+          <td><input
+                 type="text"
+                 class="number"
+                 id="degrees"
+                 value="0"
+                 onchange="moment0Changed()"> degrees
+          </td>
         </tr>
         <tr>
           <td colspan="2" align="center"><input type="checkbox" id="updateP" onclick="transRotClicked()" checked>Translate
@@ -387,11 +419,41 @@
 
     <!-- Control buttons -->
     <div id="controls" class="controls">      
-      <button type="button" class="cbutton" onclick="zoomIn()" title="zoom in"><font size="6"><i class="fa fa-search-plus"></i></font></button> <br>
-      <button type="button" class="cbutton" onclick="zoomOut()" title="zoom out"><font size="6"><i class="fa fa-search-minus"></i></font></button><br>
+      <button
+         type="button"
+         class="cbutton"
+         onclick="zoomIn()"
+         onfocus="removeFocus()"
+         title="zoom in (+)">
+        <font size="6"><i class="fa fa-search-plus"></i></font></button>
       <br>
-      <button type="button" class="cbutton" id="reset" onclick="resetClicked()" title="reset position"><font size="6"><i class="fa fa-refresh"></i></font></button> <br>
-      <button type="button" class="cbutton" id="play" onclick="toggleAnimate()" title="play/pause animation"><font size="6"><i class="fa fa-play"></i></font></button>
+      <button
+         type="button"
+         class="cbutton"
+         onclick="zoomOut()"
+         onfocus="removeFocus()"
+         title="zoom out (-)">
+        <font size="6"><i class="fa fa-search-minus"></i></font></button>
+      <br>
+      <br>
+
+      <button
+         type="button"
+         class="cbutton"
+         id="reset"
+         onclick="resetClicked()"
+         onfocus="removeFocus()"
+         title="reset position (r)">
+        <font size="6"><i class="fa fa-refresh"></i></font></button>
+      <br>
+      <button
+         type="button"
+         class="cbutton"
+         id="play"
+         onclick="toggleAnimate()"
+         onfocus="removeFocus()"
+         title="play/pause animation (spacebar)">
+        <font size="6"><i class="fa fa-play"></i></font></button>
 
 </div>
     

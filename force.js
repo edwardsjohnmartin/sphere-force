@@ -780,7 +780,13 @@ function zoomOut() {
 
 function keyDown(e) {
   if (e.target != document.body) {
-    return;
+    if (e.target.type != "button") {
+      return;
+    }
+    // switch(e.keyCode) {
+    //   case " ".charCodeAt(0):
+    //   return;
+    // }
   }
 
   switch (e.keyCode) {
@@ -846,6 +852,24 @@ function onMouseClick(e) {
       movePoint(p, 1);
     }
   }
+}
+
+// function onDocumentMouseDown(e) {
+//   if (e.target.id != "gl-canvas") {
+//     // var ae = document.activeElement;
+//     // setTimeout(function() { ae.focus() }, 1);
+//     // document.activeElement = document.body;
+//     // setTimeout(function() { document.body.focus(); }, 1);
+//     // setTimeout(function() { window.focus(); }, 1);
+//     setTimeout(function() { document.activeElement.blur(); }, 1);
+//     // console.log("button");
+//   }
+//     // console.log(e.target);
+// }
+
+function removeFocus() {
+  // setTimeout(function() { document.activeElement.blur(); }, 1);
+  document.activeElement.blur();
 }
 
 var zooming;
@@ -918,10 +942,6 @@ function win2obj(p) {
   var y = fh * (canvasHeight-p[1]) / canvasHeight;
   x = x - fw/2;
   y = y - fh/2;
-  // var x = 2 * p[0] / canvasWidth - 1;
-  // var y = 2 * (canvasHeight-p[1]) / canvasHeight - 1;
-  // x = Math.max(Math.min(x, 1.0), -1.0);
-  // y = Math.max(Math.min(y, 1.0), -1.0);
   return vec2(x, y);
 }
 
@@ -931,11 +951,6 @@ function rotatePoint(mousePos, i) {
   var theta = degrees(Math.atan2(v[1], v[0]));
   document.getElementById("degrees").value = theta;
   reset();
-
-  // var p = vec3(mousePos[0], mousePos[1], 0.0);
-  // dipoles[i].m = normalize(subtract(p, dipoles[i].p));
-  // updateForces(true);
-  // render();
 }
 
 function movePoint(p, i) {
@@ -1033,7 +1048,7 @@ window.onload = function init() {
 
   document.onkeydown = keyDown;
   // document.onclick = onMouseClick;
-  // document.onmousedown = onMouseDown;
+  // document.onmousedown = onDocumentMouseDown;
   // document.onmouseup = onMouseUp;
   // document.onmousemove = onMouseMove;
 
