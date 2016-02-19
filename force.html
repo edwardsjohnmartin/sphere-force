@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <link rel="stylesheet" href="./font-awesome-4.5.0/css/font-awesome.min.css">
     <style>
       /* make the body fill the window */
       html, body {
@@ -25,12 +26,24 @@
       .number {
       width: 40px;
       } 
+      /* settings window */
+      .settings {
+      position: absolute;
+      background-color: rgba(255, 255, 255, 0.8);
+      bottom: 10px;
+      right: 80px;
+      }
       /* controls window */
       .controls {
       position: absolute;
       background-color: rgba(255, 255, 255, 0.8);
       bottom: 10px;
       right: 10px;
+      }
+      /* control button */
+      .cbutton{
+      height:50px;
+      width:50px;
       }
     </style>
   
@@ -196,7 +209,13 @@
       // Change to white if desired
       // vec4 lColor = fColor;
       // vec4 lColor = vec4(1.0, 1.0, 1.0, 1.0);
+
       vec4 lColor = color;
+      //if (lPosition.x > 0.0) {
+        //lColor = vec4(1.0, 0.0, 0.0, 1.0);
+      //} else {
+        //lColor = vec4(0.0, 0.0, 1.0, 1.0);
+      //}
 
       // Material properties
       vec3 ka = vec3(0.3, 0.3, 0.3) * lColor.xyz;
@@ -335,18 +354,45 @@
     <canvas id="gl-canvas">
       Oops ... your browser doesn't support the HTML5 canvas element
     </canvas>
+
+    <!-- Debug output -->
     <div id="debug" class="debug"></div>
-    <div id="controls" class="controls">
-      Simulation speed: <input type="number" class="number" id="simSpeed" value="1" step="1"/>x10<sup>-4</sup><br>
-      Animation speed: <input type="number" class="number" id="animSpeed" value="500" step="1"/><br>
-      Reset position:
-        <input type="number" class="number" id="x" value="2" step="0.25">D
-        &nbsp;
-        <input type="number" class="number" id="y" value="2" step="0.25">D <br>
-      Reset moment:
-        <input type="number" class="number" id="degrees" value="0"> degrees<br>
-      <button type="button" id="reset" onclick="resetClicked()">Reset</button>
-      <button type="button" id="reset" onclick="doAnimation()">Animate</button>
+
+    <!-- Settings -->
+    <div id="settings" class="settings">
+      <table border="0">
+        <tr>
+          <td align="right">Simulation speed (dt):</td>
+          <td><input type="number" class="number" id="simSpeed" value="2" step="1"/>x10<sup>-4</sup></td>
+        </tr>
+        <tr>
+          <td align="right">Animation speed:</td>
+          <td><input type="number" class="number" id="animSpeed" value="500" step="1"/></td>
+        </tr>
+        <tr>
+          <td align="right">(x,y):</td>
+          <td>(<input type="number" class="number" id="x" value="1.5" step="0.25" onchange="x0Changed()">,
+          <input type="number" class="number" id="y" value="1.5" step="0.25" onchange="y0Changed()">)</td>
+        </tr>
+        <tr>
+          <td align="right">Moment:</td>
+          <td><input type="number" class="number" id="degrees" value="0" onchange="moment0Changed()"> degrees</td>
+        </tr>
+        <tr>
+          <td colspan="2" align="center"><input type="checkbox" id="updateP" onclick="transRotClicked()" checked>Translate
+      <input type="checkbox" id="updateM" onclick="transRotClicked()" checked>Rotate<br></td>
+      </table>
+
+    </div>
+
+    <!-- Control buttons -->
+    <div id="controls" class="controls">      
+      <button type="button" class="cbutton" onclick="zoomIn()" title="zoom in"><font size="6"><i class="fa fa-search-plus"></i></font></button> <br>
+      <button type="button" class="cbutton" onclick="zoomOut()" title="zoom out"><font size="6"><i class="fa fa-search-minus"></i></font></button><br>
+      <br>
+      <button type="button" class="cbutton" id="reset" onclick="resetClicked()" title="reset position"><font size="6"><i class="fa fa-refresh"></i></font></button> <br>
+      <button type="button" class="cbutton" id="play" onclick="toggleAnimate()" title="play/pause animation"><font size="6"><i class="fa fa-play"></i></font></button>
+
 </div>
     
   </body>
