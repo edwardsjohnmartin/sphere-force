@@ -43,6 +43,7 @@ var sphere;
 var circle;
 var sin2;
 var forceArrow;
+var bArrow;
 var torqueArrow;
 var square;
 var dipoles = new Array();
@@ -317,14 +318,17 @@ function renderB() {
   const i = Math.log(k) / Math.log(2);
   // console.log("fh = " + fh);
   // console.log("k = " + k);
-  const inc = 2;
+  const inc = 1.5;
   var exp = 1.5;
-  const start = 0.6;
+  const start = 0.7;
   const end = 1024 * zoom;
 
   // s is the distance from the center in factors of D.
+  var myinc = inc;
   // for (var s = start; s <= end; s *= inc) {
-  for (var s = start; s <= end; s = Math.pow(s+1, 1.5)) {
+  for (var s = start; s <= end; s *= myinc) {
+    myinc *= 1.2;
+  // for (var s = start; s <= end; s = Math.pow(s+1, 1.5)) {
     pushMatrix();
     mvMatrix = mult(mvMatrix, scalem(s*2, s*2, 1));
     gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
@@ -342,18 +346,23 @@ function renderB() {
   gl.useProgram(flatProgram.program);
 
   gl.enableVertexAttribArray(flatProgram.vertexLoc);
-  gl.bindBuffer(gl.ARRAY_BUFFER, forceArrow.vertexBuffer);
+  // gl.bindBuffer(gl.ARRAY_BUFFER, forceArrow.vertexBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bArrow.vertexBuffer);
   gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
 
   gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
   gl.uniform4fv(flatProgram.colorLoc, flatten(Bgrey));
 
-  const gs = 0.2 * zoom;
+  // const gs = 0.2 * zoom;
+  const gs = 0.3 * zoom;
 
   // s is the distance from the center in factors of D.
   var count = 0;
   // for (var s = start; s <= end; s *= inc) {
-  for (var s = start; s <= end; s = Math.pow(s+1, 1.5)) {
+  // for (var s = start; s <= end; s = Math.pow(s+1, 1.5)) {
+  myinc = inc;
+  for (var s = start; s <= end; s *= myinc) {
+    myinc *= 1.2;
     if (s > k) {
       // The angle at which the field line intersects y=k.
       // The intersection point is s*sin^3(theta)
@@ -423,14 +432,15 @@ function renderBArrow(p, gs) {
   // rotation
   mvMatrix = mult(mvMatrix, rotateZ(degrees(Math.atan2(v[1], v[0]))));
   // global scale
-  mvMatrix = mult(mvMatrix, scalem(gs, gs/1.4, 1));
+  // mvMatrix = mult(mvMatrix, scalem(gs, gs/1.4, 1));
+  mvMatrix = mult(mvMatrix, scalem(gs, gs/2.8, 1));
   // move triangle to origin
   mvMatrix = mult(mvMatrix,
                   translate(Math.max(-forceArrow.arrowWidth/2), 0, 0));
 
   gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
 
-  gl.drawArrays(gl.TRIANGLES, 4, 3);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   popMatrix();
 }
@@ -1251,6 +1261,7 @@ window.onload = function init() {
   circle = new Circle();
   sin2 = new Sin2();
   forceArrow = new ForceArrow();
+  bArrow = new BArrow();
   torqueArrow = new TorqueArrow();
 
   reset();
