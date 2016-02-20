@@ -38,6 +38,18 @@ var CircleProgram = function() {
   this.colorLoc = gl.getUniformLocation(this.program, "color");
 }
 
+var BProgram = function() {
+  this.program = initShaders(gl, "B-vshader", "B-fshader");
+  gl.useProgram(this.program);
+
+  this.vertexLoc = gl.getAttribLocation(this.program, "vPosition");
+
+  this.mvMatrixLoc = gl.getUniformLocation(this.program, "mvMatrix");
+  this.pMatrixLoc = gl.getUniformLocation(this.program, "pMatrix");
+
+  this.colorLoc = gl.getUniformLocation(this.program, "color");
+}
+
 var FlatProgram = function() {
   this.program = initShaders(gl, "flat-vshader", "flat-fshader");
   gl.useProgram(this.program);

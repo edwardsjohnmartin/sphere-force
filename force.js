@@ -2,6 +2,7 @@
 
 // diameter
 const D = 1;
+const radius = D/2;
 // frustum height. Frustum width will be computed using the height
 // and aspect ratio of the viewport. The frustum will be centered
 // at the origin.
@@ -40,6 +41,7 @@ var arrow;
 var segment;
 var sphere;
 var circle;
+var sin2;
 var forceArrow;
 var torqueArrow;
 var square;
@@ -72,6 +74,7 @@ const RIGHT_BUTTON = 2;
 
 // What to render
 var showB = false;
+var showCircles = true;
 
 var showDebug = true;
 var debugValues = new Object();
@@ -298,6 +301,139 @@ function renderTorqueArrow(dipole) {
 
   popMatrix();
 };
+
+function renderB() {
+  //--------------------------------
+  // Render the magnetic field lines
+  //--------------------------------
+  gl.useProgram(flatProgram.program);
+
+  gl.enableVertexAttribArray(flatProgram.vertexLoc);
+  gl.bindBuffer(gl.ARRAY_BUFFER, sin2.vertexBuffer);
+  gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
+
+  // How many diameter units from origin to top of viewport?
+  const k = fh/2;
+  const i = Math.log(k) / Math.log(2);
+  // console.log("fh = " + fh);
+  // console.log("k = " + k);
+  const inc = 2;
+  var exp = 1.5;
+  const start = 0.6;
+  const end = 1024 * zoom;
+
+  // s is the distance from the center in factors of D.
+  // for (var s = start; s <= end; s *= inc) {
+  for (var s = start; s <= end; s = Math.pow(s+1, 1.5)) {
+    pushMatrix();
+    mvMatrix = mult(mvMatrix, scalem(s*2, s*2, 1));
+    gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
+    gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
+
+    gl.uniform4fv(flatProgram.colorLoc, flatten(Bgrey));
+
+    gl.drawArrays(gl.LINE_STRIP, 0, sin2.size);
+    popMatrix();
+  }
+
+  // //--------------------------------
+  // // Render the direction arrows
+  // //--------------------------------
+  gl.useProgram(flatProgram.program);
+
+  gl.enableVertexAttribArray(flatProgram.vertexLoc);
+  gl.bindBuffer(gl.ARRAY_BUFFER, forceArrow.vertexBuffer);
+  gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
+
+  gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
+  gl.uniform4fv(flatProgram.colorLoc, flatten(Bgrey));
+
+  const gs = 0.2 * zoom;
+
+  // s is the distance from the center in factors of D.
+  var count = 0;
+  // for (var s = start; s <= end; s *= inc) {
+  for (var s = start; s <= end; s = Math.pow(s+1, 1.5)) {
+    if (s > k) {
+      // The angle at which the field line intersects y=k.
+      // The intersection point is s*sin^3(theta)
+      var ytheta = Math.asin(Math.pow(k/s, 1/3));
+      // The angle at which the field line intersects y=k/2
+      var ytheta2 = Math.asin(Math.pow(k/(2*s), 1/3));
+      // var theta = ytheta2;
+      // var theta = ytheta;
+      var theta = ytheta / 1.4;
+
+      var curx = s*Math.sin(ytheta)*Math.sin(ytheta)*Math.cos(ytheta);
+      if (curx > fw/2) {
+          // The angle at which the field line intersects x=fw/2
+          // The equation for this is cos^3(theta) - cos(theta) = -fw/s
+          // which doesn't appear to have a solution using acos. So solve
+          // using a binary search. Start the search at ytheta.
+          var curTheta = ytheta;
+          var dTheta = ytheta;
+          // const x = fw/4;
+          const x = fw/2;
+          while (Math.abs(curx-x) > 0.01) {
+            dTheta /= 2;
+            if (curx > x) {
+              curTheta -= dTheta;
+            } else {
+              curTheta += dTheta;
+            }
+            curx = s*Math.sin(curTheta)*Math.sin(curTheta)*Math.cos(curTheta);
+          }
+          theta = curTheta;
+          var cury = s*Math.sin(theta)*Math.sin(theta)*Math.sin(theta);
+          // The angle at which the field line intersects y=cury/2
+          theta = Math.asin(Math.pow(cury/(2*s), 1/3));
+      }
+      // theta /= 1.4;
+      // theta *= theta;
+      // theta = Math.pow(theta, 1.5);
+      console.log("theta = " + degrees(theta));
+
+      for (var d = -1; d <= 1; d += 2) {
+        for (var j = 0; j < 2; ++j) {
+          var phi = theta;
+          if (j == 0) {
+            phi = Math.PI - phi;
+          }
+          phi *= d;
+          var r = s * Math.pow(Math.sin(phi), 2);
+          var p = vec3(r*Math.cos(phi), r*Math.sin(phi), 0);
+          renderBArrow(p, gs);
+        }
+      }
+    } else {
+      count++;
+      renderBArrow(vec3(0, s, 0), gs);
+      renderBArrow(vec3(0, -s, 0), gs);
+    }
+  }
+  console.log("count = " + count);
+};
+
+function renderBArrow(p, gs) {
+  var v = B(dipoles[0].m, p);
+
+  pushMatrix();
+  // get in position
+  mvMatrix = mult(mvMatrix, translate(p[0], p[1], p[2]));
+  // rotation
+  mvMatrix = mult(mvMatrix, rotateZ(degrees(Math.atan2(v[1], v[0]))));
+  // global scale
+  mvMatrix = mult(mvMatrix, scalem(gs, gs/1.4, 1));
+  // move triangle to origin
+  mvMatrix = mult(mvMatrix,
+                  translate(Math.max(-forceArrow.arrowWidth/2), 0, 0));
+
+  gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
+
+  gl.drawArrays(gl.TRIANGLES, 4, 3);
+
+  popMatrix();
+}
 
 function renderTexture() {
   gl.useProgram(textureProgram.program);
@@ -726,14 +862,19 @@ function render() {
   }
   mvMatrix = mult(mvMatrix, rotMatrix);
 
-  pushMatrix();
-  mvMatrix = mult(mvMatrix, scalem(fieldTexCoord2Obj, fieldTexCoord2Obj, 1));
-  renderTexture();
-  popMatrix();
-
   gl.disable(gl.DEPTH_TEST);
 
-  renderCircles();
+  // pushMatrix();
+  // mvMatrix = mult(mvMatrix, scalem(fieldTexCoord2Obj, fieldTexCoord2Obj, 1));
+  // renderTexture();
+  // popMatrix();
+  renderB();
+
+  // gl.disable(gl.DEPTH_TEST);
+
+  if (showCircles) {
+    renderCircles();
+  }
   if (showB) {
     renderMagneticField(dipoles[1].p);
   }
@@ -761,6 +902,7 @@ function render() {
   // forceArrow.render(
   //   dipole.p, mult(normalize(B1), 4*mesh2Obj), 1/5, Bgrey, false);
 
+  // Update debug output
   var debug = document.getElementById("debug");
   debug.innerHTML = "";
   if (showDebug) {
@@ -797,12 +939,12 @@ function toggleAnimate() {
 }
 
 function zoomIn() {
-  zoom = zoom * 0.8;
+  zoom = zoom * 0.9;
   render();
 }
 
 function zoomOut() {
-  zoom = zoom * 1.2;
+  zoom = zoom * 1.1;
   render();
 }
 
@@ -857,6 +999,10 @@ function keyDown(e) {
     break;
   case "M".charCodeAt(0):
     showB = !showB;
+    render();
+    break;
+  case "C".charCodeAt(0):
+    showCircles = !showCircles;
     render();
     break;
   // default:
@@ -1103,6 +1249,7 @@ window.onload = function init() {
   sphere = new Sphere(1, 200, 200);
   square = new Square();
   circle = new Circle();
+  sin2 = new Sin2();
   forceArrow = new ForceArrow();
   torqueArrow = new TorqueArrow();
 
