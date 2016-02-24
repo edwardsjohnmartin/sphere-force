@@ -73,6 +73,10 @@ var downZoom = 1;
 const LEFT_BUTTON = 0;
 const RIGHT_BUTTON = 2;
 
+var simSpeed;
+var tFriction;
+var fFriction;
+
 // What to render
 var showB = false;
 var showCircles = true;
@@ -88,6 +92,7 @@ debugLabels.m = "m (&deg;)";
 debugLabels.elapsed_time = "t";
 debugLabels.time_step = "&Delta;t";
 debugLabels.v_at_collision = "v at collision";
+debugLabels.t_at_collision = "t at collision";
 debugLabels.time_at_zero_crossing = "t at zero crossing";
 
 // Stack stuff
@@ -235,18 +240,21 @@ function renderCircle() {
   gl.drawArrays(gl.TRIANGLES, circle.numCirclePoints + 4, 3);
 };
 
-function renderForceArrow(dipole) {
-  var f = dipole.F;
+function renderForceArrow(dipole, f, color) {
+  // var f = dipole.F;
   const mag = 4 * Math.pow(length(f), 1/4);
   f = mult(normalize(f), mag);
-  forceArrow.render(dipole.p, f, mesh2Obj, red, true);
+  forceArrow.render(dipole.p, f, mesh2Obj, color, true);
 };
 
-function renderTorqueArrow(dipole) {
+function renderTorqueArrow(dipole, t, color) {
   var p = dipole.p;
-  var t = dipole.T;
+  // var t = dipole.T;
+  // var t = T(dipoles[0], dipoles[1], false);
 
+  // console.log(t);
   if (length(t) == 0) {
+  // if (t == 0) {
     return;
   }
 
@@ -259,13 +267,13 @@ function renderTorqueArrow(dipole) {
   nMatrix = normalMatrix(mvMatrix, false);
 
   gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
-  gl.uniformMatrix4fv(flatProgram.nMatrixLoc, false, flatten(nMatrix));
 
-  gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(0.3, 0.3, 1.0, 1.0)));
+  gl.uniform4fv(flatProgram.colorLoc, flatten(color));
   // gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(0.3, 1.0, 0.3, 1.0)));
   // gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(0.0, 1.0, 0.0, 1.0)));
 
   const mag = 0.5 * Math.pow(length(t), 1/3);
+  // const mag = 0.5 * Math.pow(t, 1/3);
   const deg = Math.min(358, 360 * mag);
 
   pushMatrix();
@@ -280,6 +288,7 @@ function renderTorqueArrow(dipole) {
   // mvMatrix = mult(mvMatrix, translate(1, 0, 0));
 
   if (t[2] < 0) {
+  // if (t < 0) {
     mvMatrix = mult(mvMatrix, scalem(1, -1, 1));
   }
 
@@ -291,6 +300,54 @@ function renderTorqueArrow(dipole) {
   gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 1 + Math.floor(deg) * 2 + 6);
   // popMatrix();
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, forceArrow.vertexBuffer);
+  gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
+  mvMatrix = mult(mvMatrix, rotateZ(deg));
+  mvMatrix = mult(mvMatrix, translate(torqueArrow.r, 0, 0));
+  mvMatrix = mult(mvMatrix, rotateZ(90));
+  gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
+  gl.drawArrays(gl.TRIANGLES, 4, 3);
+
+  popMatrix();
+};
+
+// Angular velocity - w
+function renderAVArrow(dipole, w, color) {
+  var p = dipole.p;
+
+  if (w == 0) {
+    return;
+  }
+
+  gl.useProgram(flatProgram.program);
+
+  gl.enableVertexAttribArray(flatProgram.vertexLoc);
+  gl.bindBuffer(gl.ARRAY_BUFFER, torqueArrow.vertexBuffer);
+  gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
+
+  nMatrix = normalMatrix(mvMatrix, false);
+
+  gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
+
+  gl.uniform4fv(flatProgram.colorLoc, flatten(color));
+
+  const mag = 0.5 * Math.abs(w);
+  const deg = Math.min(358, 360 * mag);
+
+  pushMatrix();
+  // get in position
+  mvMatrix = mult(mvMatrix, translate(p[0], p[1], p[2]));
+  // global scale
+  const gs = mesh2Obj * 0.5;
+  mvMatrix = mult(mvMatrix, scalem(gs, gs, 1));
+
+  if (w < 0) {
+    mvMatrix = mult(mvMatrix, scalem(1, -1, 1));
+  }
+
+  gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 1 + Math.floor(deg) * 2 + 6);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, forceArrow.vertexBuffer);
   gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
@@ -400,7 +457,6 @@ function renderB() {
       // theta /= 1.4;
       // theta *= theta;
       // theta = Math.pow(theta, 1.5);
-      console.log("theta = " + degrees(theta));
 
       for (var d = -1; d <= 1; d += 2) {
         for (var j = 0; j < 2; ++j) {
@@ -420,7 +476,6 @@ function renderB() {
       renderBArrow(vec3(0, -s, 0), gs);
     }
   }
-  console.log("count = " + count);
 };
 
 function renderBArrow(p, gs) {
@@ -503,7 +558,7 @@ function BSum(r) {
 // Force of dipole m_i on dipole m_j.
 // Equation 8 of the paper.
 // function F(i, j) {
-function F(di, dj) {
+function F(di, dj, applyFriction) {
   // const Rij = subtract(dipoles[j].p, dipoles[i].p);
   const Rij = subtract(dj.p, di.p);
   const Rij_mag = length(Rij);
@@ -518,13 +573,23 @@ function F(di, dj) {
   const n3 = mult(vec3c(dot(mi, mj)), Rij);
   const n4 = mult(vec3c(5 * dot(mi, Rij) * dot(mj, Rij) / Math.pow(Rij_mag, 2)),
                   Rij);
-  return mult(vec3c(c), add(n1, add(n2, subtract(n3, n4))));
+  var f = mult(vec3c(c), add(n1, add(n2, subtract(n3, n4))));
+  if (applyFriction) {
+    // Friction
+    if (length(dj.v) > 0) {
+      // if (fFriction > length(f))
+      var mu = mult(normalize(mult(dj.v, -1)), fFriction);
+      f = add(f, mu);
+      debugValues.mu = length(mu).toFixed(4);
+    }
+  }
+  return f;
 }
 
 // Torque of dipole m_i on dipole m_j.
 // Equation 10 of the paper.
 // function T(i, j) {
-function T(di, dj) {
+function T(di, dj, applyFriction) {
   // const Rij = subtract(dipoles[j].p, dipoles[i].p);
   const Rij = subtract(dj.p, di.p);
   const Rij_mag = length(Rij);
@@ -537,7 +602,23 @@ function T(di, dj) {
   const cn1 = dot(mi, Rij) / (2 * Math.pow(Rij_mag, 5));
   const n1 = mult(cross(mj, Rij), cn1);
   const n2 = mult(cross(mj, mi), 1/(6 * Math.pow(Rij_mag, 3)));
-  return mult(vec3c(c), subtract(n1, n2));
+  var t = mult(vec3c(c), subtract(n1, n2));
+
+  if (applyFriction) {
+    // Friction
+    if (Math.abs(dj.av) > 0) {
+      var mu = vec3(0, 0, (dj.av > 0 ? -tFriction : tFriction));
+      // if (Math.abs(mu) > t) {
+      //   t = 0;
+      // } else {
+        t = add(t, mu);
+      // }
+    }
+    debugValues.torque_after_friction = length(t).toFixed(4);
+  }
+
+  return t;
+  // return length(t) * ((t[2] < 0) ? -1 : 1);
 }
 
 function updateForces(updateInitial) {
@@ -548,10 +629,10 @@ function updateForces(updateInitial) {
       if (i != j) {
         // dipoles[j].F = add(dipoles[j].F, F(i, j));
         dipoles[j].F = add(dipoles[j].F,
-                           F(dipoles[i], dipoles[j]));
+                           F(dipoles[i], dipoles[j], true));
         dipoles[j].T = add(dipoles[j].T,
-                           T(dipoles[i], dipoles[j]));
-                           // T(i, j));
+                           T(dipoles[i], dipoles[j], true));
+        // dipoles[j].T = dipoles[j].T + T(dipoles[i], dipoles[j]);
       }
     }
     if (updateInitial) {
@@ -571,27 +652,30 @@ function euler(v, a, dt) {
   return add(v, mult(a, dt));
 }
 
-// Computes the velocity of a free dipole at position p
-function f(dipole, p, dt) {
-  var newDipole = new Dipole(p, dipole.m, false);
-  var a = F(dipoles[0], newDipole);
-  return add(dipole.v, mult(a, dt));
-}
+// // Computes the velocity of a free dipole at position p
+// function f(dipole, p, dt) {
+//   var newDipole = new Dipole(p, dipole.m, false);
+//   var a = F(dipoles[0], newDipole);
+//   return add(dipole.v, mult(a, dt));
+// }
 
 // Computes the acceleration of a free dipole at position p with moment m
 function a(p, v, theta, dt) {
   // const m = dipoles[1].m;
   const m = vec3(Math.cos(theta), Math.sin(theta), 0);
   var dipole = new Dipole(p, m, false);
-  return F(dipoles[0], dipole);
+  dipole.v = v;
+  return F(dipoles[0], dipole, true);
 }
 
 // Angular acceleration from the torque
-function gamma(p, v, theta, dt) {
+function alpha(p, v, theta, alphaValue, dt) {
   const m = vec3(Math.cos(theta), Math.sin(theta), 0);
   var dipole = new Dipole(p, m, false);
-  var t = mult(T(dipoles[0], dipole), 10);
-  return length(t) * ((t[2] < 0) ? -1 : 1);
+  dipole.av = alphaValue;
+  var t = mult(T(dipoles[0], dipole, true), 10);
+  var ret = length(t) * ((t[2] < 0) ? -1 : 1);
+  return ret;
 }
 
 function rk4(x, v, theta, omega, dt, m) {
@@ -600,43 +684,45 @@ function rk4(x, v, theta, omega, dt, m) {
 
   // x: initial position (number-like object)
   // v: initial velocity (number-like object)
+  // a: acceleration
   // theta: initial moment
   // omega: initial angular velocity
+  // alpha: angular acceleration
   // dt: timestep (number)
   var x1 = x;
   var v1 = v;
   var theta1 = theta;
   var omega1 = omega;
   var a1 = a(x1, v1, theta1, 0);
-  var gamma1 = gamma(x1, v1, theta1, 0);
+  var alpha1 = alpha(x1, v1, theta1, omega1, 0);
 
   var x2 = add(x, mult(v1, 0.5*dt));
   var v2 = add(v, mult(a1, 0.5*dt));
   var theta2 = theta + omega1 * 0.5*dt;
-  var omega2 = omega + gamma1 * 0.5*dt;
+  var omega2 = omega + alpha1 * 0.5*dt;
   var a2 = a(x2, v2, theta2, dt/2.0);
-  var gamma2 = gamma(x2, v2, theta2, dt/2.0);
+  var alpha2 = alpha(x2, v2, theta2, omega2, dt/2.0);
 
   var x3 = add(x, mult(v2, 0.5*dt));
   var v3 = add(v, mult(a2, 0.5*dt));
   var theta3 = theta + omega2 * 0.5*dt;
-  var omega3 = omega + gamma2 * 0.5*dt;
+  var omega3 = omega + alpha2 * 0.5*dt;
   var a3 = a(x3, v3, theta3, dt/2.0);
-  var gamma3 = gamma(x3, v3, theta3, dt/2.0);
+  var alpha3 = alpha(x3, v3, theta3, omega3, dt/2.0);
 
   var x4 = add(x, mult(v3, dt));
   var v4 = add(v, mult(a3, dt));
   var theta4 = theta + omega3 * dt;
-  var omega4 = omega + gamma3 * dt;
+  var omega4 = omega + alpha3 * dt;
   var a4 = a(x4, v4, theta4, dt);
-  var gamma4 = gamma(x4, v4, theta4, dt);
+  var alpha4 = alpha(x4, v4, theta4, omega4, dt);
 
   var xf =
     add(x, mult(dt/6.0, add(v1, add(mult(2, v2), add(mult(2, v3), v4)))));
   var vf =
     add(v, mult(dt/6.0, add(a1, add(mult(2, a2), add(mult(2, a3), a4)))));
   var thetaf = theta + (dt/6.0) * (omega1 + 2*omega2 + 2*omega3 + omega4);
-  var omegaf = omega + (dt/6.0) * (gamma1 + 2*gamma2 + 2*gamma3 + gamma4);
+  var omegaf = omega + (dt/6.0) * (alpha1 + 2*alpha2 + 2*alpha3 + alpha4);
 
   var ret = new Object();
   ret.p = xf;
@@ -648,10 +734,7 @@ function rk4(x, v, theta, omega, dt, m) {
 
 // Assumes forces are up-to-date.
 function updatePositions() {
-  var simSpeed = document.getElementById("simSpeed").value;
-
   var dt = simSpeed * 1/10000;
-  // debugValues.time_step = dt.toFixed(4);
   elapsedTime += dt;
 
   // 4th order runge-kutta
@@ -690,7 +773,7 @@ function updatePositions() {
 
     dipoles[1].v = v;
     
-    if (!touching) {
+    if (!touching || dot(rk.v, mult(R01, -1)) < 0) {
       // Find the distance a from the center of the fixed dipole
       // to the displacement line.
       //
@@ -733,6 +816,7 @@ function updatePositions() {
         // dipoles[1].fixed = true;
         dipoles[1].v = vec3(0, 0, 0);
         debugValues.v_at_collision = length(v).toFixed(5);
+        debugValues.t_at_collision = elapsedTime.toFixed(5);
       } else {
         dipoles[1].p = add(dipoles[1].p, dx);
       }
@@ -750,11 +834,15 @@ function updatePositions() {
   updateDebug(dipoles[1]);
 }
 
+function vecString(v, fixed) {
+  return v.map(function(n) { return n.toFixed(fixed) });
+}
+
 function updateDebug(dipole) {
   debugValues.F = dipole.F.map(function(n) { return n.toFixed(2) });
-  debugValues.F_mag = length(dipole.F).toFixed(2);
+  debugValues.F_mag = length(dipole.F).toFixed(4);
   // debugValues.T = dipole.T.map(function(n) { return n.toFixed(2) });
-  debugValues.T_mag = length(dipole.T).toFixed(2);
+  debugValues.T_mag = length(dipole.T).toFixed(4);
 
   debugValues.v = dipole.v.map(function(n) { return n.toFixed(2) });
   debugValues.w = dipole.av.toFixed(4);
@@ -766,7 +854,9 @@ function tick() {
   // if (!dipoles[1].fixed && animate) {
   if (animate) {
     requestAnimFrame(tick);
-    var animSpeed = document.getElementById("animSpeed").value;
+    // var animSpeed = document.getElementById("animSpeed").value;
+    var animSpeed = 500;
+
     // for (var i = 0; !dipoles[1].fixed && i < animSpeed; ++i) {
     for (var i = 0; i < animSpeed; ++i) {
       updatePositions();
@@ -891,8 +981,19 @@ function render() {
 
   var dipole = dipoles[1];
 
-  renderForceArrow(dipole);
-  renderTorqueArrow(dipole);
+  // force
+  var f = F(dipoles[0], dipoles[1], false);
+  renderForceArrow(dipole, f, vec4(1.0, 0.0, 0.0, 1.0));
+  f = F(dipoles[0], dipoles[1], true);
+  renderForceArrow(dipole, f, vec4(1.0, 0.6, 0.6, 1.0));
+
+  // torque
+  var t = T(dipoles[0], dipoles[1], false);
+  renderTorqueArrow(dipole, t, vec4(0.3, 0.3, 1.0, 1.0));
+  // Render torque after friction
+  // var mu = mult(normalize(mult(t, -1)), tFriction);
+  var tp = T(dipoles[0], dipoles[1], true);
+  renderTorqueArrow(dipole, tp, vec4(0.6, 0.6, 1.0, 1.0));
 
   // render Rij
   // const Rij = subtract(dipole.p, dipoles[0].p);
@@ -902,8 +1003,9 @@ function render() {
   // render velocity arrow
   forceArrow.render(dipole.p, mult(dipole.v, 30),
                     mesh2Obj/2, green, false);
-  // forceArrow.render(dipole.p, mult(dipole.v, 30),
-  //                   mesh2Obj/2, vec4(0.3, 0.3, 1.0, 1.0), false);
+
+  // render angular velocity arrow
+  renderAVArrow(dipole, dipole.av, vec4(1.0, 1.0, 0.0, 1.0));
 
   // render B at dipole
   const B1 = B(dipoles[0].m, dipole.p);
@@ -958,6 +1060,20 @@ function zoomOut() {
   render();
 }
 
+function adjustSimSpeed(factor) {
+  const newSpeed = simSpeed * factor;
+  // for (var i = 0; i < 5; ++i) {
+  //   if (newSpeed > 
+  // }
+  document.getElementById("simSpeed").value = newSpeed.toPrecision(2);
+  // document.getElementById("simSpeed").value = newSpeed.toFixed(1);
+  // var fixed = 2;
+  // while (Number(document.getElementById("simSpeed").value) == simSpeed) {
+  //   document.getElementById("simSpeed").value = (simSpeed * factor).toFixed(fixed);
+  // }
+  simSpeedChanged();
+}
+
 function keyDown(e) {
   if (e.target != document.body) {
     if (e.target.type != "button") {
@@ -975,12 +1091,22 @@ function keyDown(e) {
     break;
   case 38:
     // up arrow
+    adjustSimSpeed(1.2);
+    // document.getElementById("simSpeed").value = (simSpeed * 1.2).toFixed(1);
+    // var fixed = 2;
+    // while (Number(document.getElementById("simSpeed").value) == simSpeed) {
+    //   document.getElementById("simSpeed").value = (simSpeed * 1.2).toFixed(fixed);
+    // }
+    // simSpeedChanged();
     break;
   case 39:
     // right arrow
     break;
   case 40:
     // down arrow
+    adjustSimSpeed(0.8);
+    // document.getElementById("simSpeed").value = (simSpeed * 0.8).toFixed(1);
+    // simSpeedChanged();
     break;
   case 189:
     // -
@@ -1213,6 +1339,18 @@ function transRotClicked() {
   updateM = document.getElementById("updateM").checked;
 }
 
+function tFrictionChanged() {
+  tFriction = Number(document.getElementById("tFriction").value);
+}
+
+function fFrictionChanged() {
+  fFriction = Number(document.getElementById("fFriction").value);
+}
+
+function simSpeedChanged() {
+  simSpeed = Number(document.getElementById("simSpeed").value);
+}
+
 window.onload = function init() {
   canvas = document.getElementById("gl-canvas");
 
@@ -1263,6 +1401,10 @@ window.onload = function init() {
   forceArrow = new ForceArrow();
   bArrow = new BArrow();
   torqueArrow = new TorqueArrow();
+
+  simSpeed = Number(document.getElementById("simSpeed").value);
+  tFriction = Number(document.getElementById("tFriction").value);
+  fFriction = Number(document.getElementById("fFriction").value);
 
   reset();
   // updateForces(true);

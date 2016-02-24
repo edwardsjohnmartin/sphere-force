@@ -58,7 +58,6 @@ var FlatProgram = function() {
 
   this.mvMatrixLoc = gl.getUniformLocation(this.program, "mvMatrix");
   this.pMatrixLoc = gl.getUniformLocation(this.program, "pMatrix");
-  this.nMatrixLoc = gl.getUniformLocation(this.program, "nMatrix");
 
   this.colorLoc = gl.getUniformLocation(this.program, "color");
 }
