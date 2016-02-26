@@ -1,77 +1,94 @@
 var LineProgram = function() {
-  this.program = initShaders(gl, "line-vshader", "line-fshader");
-  gl.useProgram(this.program);
+  this.initialized = false;
+  const prog = this;
+  initShadersNew(
+    gl, "shaders/line.vert", "shaders/line.frag", function(program) {
+      prog.initialized = true;
+      prog.program = program;
+      gl.useProgram(prog.program);
 
-  this.vertexLoc = gl.getAttribLocation(this.program, "vPosition");
-  this.colorLoc = gl.getAttribLocation(this.program, "vColor");
+      prog.vertexLoc = gl.getAttribLocation(prog.program, "vPosition");
+      prog.colorLoc = gl.getAttribLocation(prog.program, "vColor");
 
-  this.mvMatrixLoc = gl.getUniformLocation(this.program, "mvMatrix");
-  this.pMatrixLoc = gl.getUniformLocation(this.program, "pMatrix");
-  this.nMatrixLoc = gl.getUniformLocation(this.program, "nMatrix");
+      prog.mvMatrixLoc = gl.getUniformLocation(prog.program, "mvMatrix");
+      prog.pMatrixLoc = gl.getUniformLocation(prog.program, "pMatrix");
+      prog.nMatrixLoc = gl.getUniformLocation(prog.program, "nMatrix");
+    });
 }
 
 var SphereProgram = function() {
-  this.program = initShaders(gl, "sphere-vshader", "sphere-fshader");
-  gl.useProgram(this.program);
+  this.initialized = false;
+  const prog = this;
+  initShadersNew(
+    gl, "shaders/sphere.vert", "shaders/sphere.frag", function(program) {
+      prog.initialized = true;
+      prog.program = program;
+      gl.useProgram(prog.program);
 
-  this.vertexLoc = gl.getAttribLocation(this.program, "vPosition");
-  this.normalLoc = gl.getAttribLocation(this.program, "vNormal");
-  this.colorLoc = gl.getAttribLocation(this.program, "vColor");
+      prog.vertexLoc = gl.getAttribLocation(prog.program, "vPosition");
+      prog.normalLoc = gl.getAttribLocation(prog.program, "vNormal");
+      prog.colorLoc = gl.getAttribLocation(prog.program, "vColor");
 
-  this.mvMatrixLoc = gl.getUniformLocation(this.program, "mvMatrix");
-  this.pMatrixLoc = gl.getUniformLocation(this.program, "pMatrix");
-  this.nMatrixLoc = gl.getUniformLocation(this.program, "nMatrix");
+      prog.mvMatrixLoc = gl.getUniformLocation(prog.program, "mvMatrix");
+      prog.pMatrixLoc = gl.getUniformLocation(prog.program, "pMatrix");
+      prog.nMatrixLoc = gl.getUniformLocation(prog.program, "nMatrix");
+    });
 }
 
 var CircleProgram = function() {
-  this.program = initShaders(gl, "circle-vshader", "circle-fshader");
-  gl.useProgram(this.program);
+  this.initialized = false;
+  const prog = this;
+  initShadersNew(
+    gl, "shaders/circle.vert", "shaders/circle.frag", function(program) {
+      prog.initialized = true;
+      prog.program = program;
+      gl.useProgram(prog.program);
 
-  this.vertexLoc = gl.getAttribLocation(this.program, "vPosition");
-  this.normalLoc = gl.getAttribLocation(this.program, "vNormal");
-  this.colorLoc = gl.getAttribLocation(this.program, "vColor");
+      prog.vertexLoc = gl.getAttribLocation(prog.program, "vPosition");
+      prog.normalLoc = gl.getAttribLocation(prog.program, "vNormal");
+      prog.colorLoc = gl.getAttribLocation(prog.program, "vColor");
 
-  this.mvMatrixLoc = gl.getUniformLocation(this.program, "mvMatrix");
-  this.pMatrixLoc = gl.getUniformLocation(this.program, "pMatrix");
-  this.nMatrixLoc = gl.getUniformLocation(this.program, "nMatrix");
+      prog.mvMatrixLoc = gl.getUniformLocation(prog.program, "mvMatrix");
+      prog.pMatrixLoc = gl.getUniformLocation(prog.program, "pMatrix");
+      prog.nMatrixLoc = gl.getUniformLocation(prog.program, "nMatrix");
 
-  this.colorLoc = gl.getUniformLocation(this.program, "color");
-}
-
-var BProgram = function() {
-  this.program = initShaders(gl, "B-vshader", "B-fshader");
-  gl.useProgram(this.program);
-
-  this.vertexLoc = gl.getAttribLocation(this.program, "vPosition");
-
-  this.mvMatrixLoc = gl.getUniformLocation(this.program, "mvMatrix");
-  this.pMatrixLoc = gl.getUniformLocation(this.program, "pMatrix");
-
-  this.colorLoc = gl.getUniformLocation(this.program, "color");
+      prog.colorLoc = gl.getUniformLocation(prog.program, "color");
+    });
 }
 
 var FlatProgram = function() {
-  this.program = initShaders(gl, "flat-vshader", "flat-fshader");
-  gl.useProgram(this.program);
+  this.initialized = false;
+  const prog = this;
+  initShadersNew(
+    gl, "shaders/flat.vert", "shaders/flat.frag", function(program) {
+      prog.initialized = true;
+      prog.program = program;
+      gl.useProgram(prog.program);
 
-  this.vertexLoc = gl.getAttribLocation(this.program, "vPosition");
+      prog.vertexLoc = gl.getAttribLocation(prog.program, "vPosition");
 
-  this.mvMatrixLoc = gl.getUniformLocation(this.program, "mvMatrix");
-  this.pMatrixLoc = gl.getUniformLocation(this.program, "pMatrix");
+      prog.mvMatrixLoc = gl.getUniformLocation(prog.program, "mvMatrix");
+      prog.pMatrixLoc = gl.getUniformLocation(prog.program, "pMatrix");
 
-  this.colorLoc = gl.getUniformLocation(this.program, "color");
+      prog.colorLoc = gl.getUniformLocation(prog.program, "color");
+    });
 }
 
 var TextureProgram = function() {
-  this.program = initShaders(gl, "tex-vshader", "tex-fshader");
-  gl.useProgram(this.program);
+  this.initialized = false;
+  const prog = this;
+  initShadersNew(
+    gl, "shaders/flat.vert", "shaders/flat.frag", function(program) {
+      prog.initialized = true;
+      prog.program = program;
+      gl.useProgram(prog.program);
 
-  this.vertexLoc = gl.getAttribLocation(this.program, "vPosition");
-  this.colorLoc = gl.getAttribLocation(this.program, "vColor");
-  this.texCoordLoc = gl.getAttribLocation(this.program, "vTexCoord");
+      prog.vertexLoc = gl.getAttribLocation(prog.program, "vPosition");
+      prog.colorLoc = gl.getAttribLocation(prog.program, "vColor");
+      prog.texCoordLoc = gl.getAttribLocation(prog.program, "vTexCoord");
 
-  this.mvMatrixLoc = gl.getUniformLocation(this.program, "mvMatrix");
-  this.pMatrixLoc = gl.getUniformLocation(this.program, "pMatrix");
-  this.nMatrixLoc = gl.getUniformLocation(this.program, "nMatrix");
+      prog.mvMatrixLoc = gl.getUniformLocation(prog.program, "mvMatrix");
+      prog.pMatrixLoc = gl.getUniformLocation(prog.program, "pMatrix");
+      prog.nMatrixLoc = gl.getUniformLocation(prog.program, "nMatrix");
+    });
 }
-

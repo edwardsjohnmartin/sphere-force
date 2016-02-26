@@ -24,10 +24,12 @@ var ForceArrow = function() {
 // s - scale factor
 // outsideCircle - whether to translate the arrow outside a circle
 ForceArrow.prototype.render = function(p, v, s, color, outsideCircle, thin) {
+  if (!flatProgram.initialized) return false;
+
   var thin = typeof thin !== 'undefined' ?  thin : 1;
   const mag = length(v);
   if (mag == 0) {
-    return;
+    return true;
   }
 
   gl.useProgram(flatProgram.program);
@@ -73,5 +75,7 @@ ForceArrow.prototype.render = function(p, v, s, color, outsideCircle, thin) {
   popMatrix();
 
   popMatrix();
+
+  return true;
 }
 

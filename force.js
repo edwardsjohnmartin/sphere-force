@@ -24,9 +24,17 @@ const red = vec4(1, 0, 0, 1);
 const green = vec4(0, 1, 0, 1);
 const blue = vec4(0, 0, 1, 1);
 const cyan = vec4(0, 1, 1, 1);
+const yellow = vec4(1.0, 1.0, 0.0, 1.0);
 const Bgrey = vec4(.5, .5, .5, 1);
 const black = vec4(0, 0, 0, 1);
 // const white = vec4(0.8, 0.8, 0.8, 1);
+
+const Fcolor = red;
+const FnetColor = vec4(1.0, 0.6, 0.6, 1.0);
+const Tcolor = red;
+const TnetColor = vec4(0.6, 0.6, 1.0, 1.0);
+const vcolor = green;
+const wcolor = green;
 
 var canvas;
 var canvasWidth, canvasHeight;
@@ -150,6 +158,7 @@ var Dipole = function(p, m, fixed) {
 }
 
 function renderAxis() {
+  if (!lineProgram.initialized) return;
   gl.useProgram(lineProgram.program);
 
   gl.enableVertexAttribArray(lineProgram.vertexLoc);
@@ -167,6 +176,7 @@ function renderAxis() {
 };
 
 function renderFloor() {
+  if (!lineProgram.initialized) return false;
   gl.useProgram(lineProgram.program);
 
   gl.enableVertexAttribArray(lineProgram.vertexLoc);
@@ -181,9 +191,12 @@ function renderFloor() {
   gl.uniformMatrix4fv(lineProgram.pMatrixLoc, false, flatten(pMatrix));
 
   gl.drawArrays(gl.LINES, 0, floor.numPoints);
+
+  return true;
 };
 
 function renderArrow() {
+  if (!lineProgram.initialized) return false;
   gl.useProgram(lineProgram.program);
 
   gl.enableVertexAttribArray(lineProgram.vertexLoc);
@@ -198,9 +211,12 @@ function renderArrow() {
   gl.uniformMatrix4fv(lineProgram.pMatrixLoc, false, flatten(pMatrix));
 
   gl.drawArrays(gl.LINES, 0, arrow.numPoints);
+
+  return true;
 };
 
 function renderSegment() {
+  if (!lineProgram.initialized) return false;
   gl.useProgram(lineProgram.program);
 
   gl.enableVertexAttribArray(lineProgram.vertexLoc);
@@ -215,9 +231,12 @@ function renderSegment() {
   gl.uniformMatrix4fv(lineProgram.pMatrixLoc, false, flatten(pMatrix));
 
   gl.drawArrays(gl.LINES, 0, segment.numPoints);
+
+  return true;
 };
 
 function renderSphere() {
+  if (!sphereProgram.initialized) return false;
   gl.useProgram(sphereProgram.program);
 
   gl.enableVertexAttribArray(sphereProgram.vertexLoc);
@@ -240,9 +259,12 @@ function renderSphere() {
 
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphere.indexBuffer);
   gl.drawElements(gl.TRIANGLES, sphere.numIndices, gl.UNSIGNED_SHORT, 0);
+
+  return true;
 };
 
 function renderCircle() {
+  if (!circleProgram.initialized) return;
   gl.useProgram(circleProgram.program);
 
   gl.enableVertexAttribArray(circleProgram.vertexLoc);
@@ -264,23 +286,23 @@ function renderCircle() {
   gl.drawArrays(gl.TRIANGLE_FAN,
                 circle.numCirclePoints, 4);
   gl.drawArrays(gl.TRIANGLES, circle.numCirclePoints + 4, 3);
+
+  return true;
 };
 
 function renderForceArrow(dipole, f, color, thin) {
   const mag = 4 * Math.pow(length(f), 1/4);
   f = mult(normalize(f), mag);
-  forceArrow.render(dipole.p, f, mesh2Obj, color, true, thin);
+  return forceArrow.render(dipole.p, f, mesh2Obj, color, true, thin);
 };
 
 function renderTorqueArrow(dipole, t, color, thin) {
-  var p = dipole.p;
-  // var t = dipole.T;
-  // var t = T(dipoles[0], dipoles[1], false);
+  if (!flatProgram.initialized) return false;
 
-  // console.log(t);
+  var p = dipole.p;
+
   if (length(t) == 0) {
-  // if (t == 0) {
-    return;
+    return true;
   }
 
   gl.useProgram(flatProgram.program);
@@ -294,11 +316,8 @@ function renderTorqueArrow(dipole, t, color, thin) {
   gl.uniformMatrix4fv(flatProgram.pMatrixLoc, false, flatten(pMatrix));
 
   gl.uniform4fv(flatProgram.colorLoc, flatten(color));
-  // gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(0.3, 1.0, 0.3, 1.0)));
-  // gl.uniform4fv(flatProgram.colorLoc, flatten(vec4(0.0, 1.0, 0.0, 1.0)));
 
   const mag = 0.5 * Math.pow(length(t), 1/3);
-  // const mag = 0.5 * Math.pow(t, 1/3);
   const deg = Math.min(358, 360 * mag);
 
   pushMatrix();
@@ -307,26 +326,13 @@ function renderTorqueArrow(dipole, t, color, thin) {
   // global scale
   const gs = mesh2Obj;
   mvMatrix = mult(mvMatrix, scalem(gs, gs, 1));
-  // mvMatrix = mult(mvMatrix, translate(1-thin, 1-thin, 0));
-  // mvMatrix = mult(mvMatrix, scalem(thin, thin, 1));
-  // // rotation
-  // mvMatrix = mult(mvMatrix, rotateZ(degrees(Math.atan2(f[1], f[0]))));
-  // // translate outside of circle
-  // mvMatrix = mult(mvMatrix, translate(1, 0, 0));
 
   if (t[2] < 0) {
-  // if (t < 0) {
     mvMatrix = mult(mvMatrix, scalem(1, -1, 1));
   }
 
-  // pushMatrix();
-  // (1 - aw) * f = (mag - aw)
-  // f = (mag - aw)/(1 - aw)
-  // const s = (mag - forceArrow.arrowWidth) / (1.0 - forceArrow.arrowWidth);
-  // mvMatrix = mult(mvMatrix, scalem(s, 1, 1));
   gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 1 + Math.floor(deg) * 2 + 6);
-  // popMatrix();
 
   gl.bindBuffer(gl.ARRAY_BUFFER, forceArrow.vertexBuffer);
   gl.vertexAttribPointer(flatProgram.vertexLoc, 4, gl.FLOAT, false, 0, 0);
@@ -337,14 +343,18 @@ function renderTorqueArrow(dipole, t, color, thin) {
   gl.drawArrays(gl.TRIANGLES, 4, 3);
 
   popMatrix();
+
+  return true;
 };
 
 // Angular velocity - w
 function renderAVArrow(dipole, w, color) {
+  if (!flatProgram.initialized) return false;
+
   var p = dipole.p;
 
   if (w == 0) {
-    return;
+    return true;
   }
 
   gl.useProgram(flatProgram.program);
@@ -385,9 +395,12 @@ function renderAVArrow(dipole, w, color) {
   gl.drawArrays(gl.TRIANGLES, 4, 3);
 
   popMatrix();
+
+  return true;
 };
 
 function renderB() {
+  if (!flatProgram.initialized) return false;
   //--------------------------------
   // Render the magnetic field lines
   //--------------------------------
@@ -503,9 +516,13 @@ function renderB() {
       renderBArrow(vec3(0, -s, 0), gs);
     }
   }
+
+  return true;
 };
 
 function renderBArrow(p, gs) {
+  if (!flatProgram.initialized) return false;
+
   var v = B(dipoles[0].m, p);
 
   pushMatrix();
@@ -525,9 +542,13 @@ function renderBArrow(p, gs) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   popMatrix();
+
+  return true;
 }
 
 function renderTexture() {
+  if (!textureProgram.initialized) return false;
+
   gl.useProgram(textureProgram.program);
 
   gl.enableVertexAttribArray(textureProgram.vertexLoc);
@@ -546,134 +567,9 @@ function renderTexture() {
   gl.uniformMatrix4fv(textureProgram.pMatrixLoc, false, flatten(pMatrix));
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, square.numVertices);
+
+  return true;
 };
-
-// Permeability of free space in a vacuum
-const MU0 = 4 * Math.PI * Math.pow(10, -7);
-
-// Computes the magnetic field at position r.
-// m points south to north
-// dipole is sphere
-// n spheres of diameter d. For each sphere, specify m orientation.
-// Torque on dipole will twist m.
-function B(m, r) {
-  var mag = length(r);
-  if (mag == 0) {
-    return 0;
-  }
-  // const c = MU0 / (4 * Math.PI);
-  const c = 1 / 6;
-  const mr = mult(r, vec3c(3 * dot(m, r) / Math.pow(mag, 5)));
-  const mm = mult(m, vec3c(1.0 / Math.pow(mag, 3)));
-  return mult(subtract(mr, mm), vec3c(c));
-}
-
-function BSum(r) {
-  var sum = 0;
-  for (var i = 0; i < dipoles.length; ++i) {
-    var v = B(dipoles[i].m, subtract(r, dipoles[i].p));
-    if (v != 0) {
-      if (sum == 0) {
-        sum = v;
-      } else {
-        sum = add(sum, v);
-      }
-    }
-  }
-  return sum;
-}
-
-// Force of dipole m_i on dipole m_j.
-// Equation 8 of the paper.
-// applyFriction also applies to eddy breaks
-function F(di, dj, applyFriction) {
-  // const Rij = subtract(dipoles[j].p, dipoles[i].p);
-  const Rij = subtract(dj.p, di.p);
-  const Rij_mag = length(Rij);
-  // const mi = dipoles[i].m;
-  // const mj = dipoles[j].m;
-  const mi = di.m;
-  const mj = dj.m;
-
-  const c = 1 / (2 * Math.pow(Rij_mag, 5));
-  const n1 = mult(vec3c(dot(mi, Rij)), mj);
-  const n2 = mult(vec3c(dot(mj, Rij)), mi);
-  const n3 = mult(vec3c(dot(mi, mj)), Rij);
-  const n4 = mult(vec3c(5 * dot(mi, Rij) * dot(mj, Rij) / Math.pow(Rij_mag, 2)),
-                  Rij);
-  var f = mult(vec3c(c), add(n1, add(n2, subtract(n3, n4))));
-  const f_orig = f.slice(0);
-  if (applyFriction) {
-    // Friction
-    if (length(dj.v) > 0) {
-      // friction
-      var mu = mult(normalize(mult(dj.v, -1)), fFriction);
-      // debugValues.mu = mu;
-      f = add(f, mu);
-      // debugValues.mu = length(mu).toFixed(4);
-      // eddy breaks
-      var B_mag = length(B(di.m, subtract(dj.p, di.p)));
-      var v_mag = length(dj.v);
-      var eddy_mag = fEddy * B_mag * B_mag * v_mag;
-      var eddy = mult(-eddy_mag, normalized(dj.v));
-      f = add(f, eddy);
-      debugValues.B_mag = B_mag.toFixed(4);
-      debugValues.v_mag = v_mag.toFixed(4);
-      // debugValues.B_mag = B_mag;
-      // debugValues.v_mag = v_mag;
-      // debugValues.f_eddy_mag = eddy_mag.toFixed(4);
-      // debugValues.f_eddy_mag = eddy_mag;
-      // debugValues.f_eddy_mag = (100 * eddy_mag / length(f_orig)).toFixed(4) + "% of F";
-      debugValues.f_eddy_mag = eddy_mag.toFixed(4) + " (" + (100 * eddy_mag / length(f_orig)).toFixed(4) + "% of |F|)";
-    }
-
-    // Only update values if we're applying friction
-    debugValues.F = f.map(function(n) { return n.toFixed(2) });
-    debugValues.F_mag = length(f_orig).toFixed(4);
-    debugValues.F_mag_net = length(f).toFixed(4);
-  }
-  return f;
-}
-
-// Torque of dipole m_i on dipole m_j.
-// Equation 10 of the paper.
-// applyFriction applies to both friction and eddy breaks
-function T(di, dj, applyFriction) {
-  const Rij = subtract(dj.p, di.p);
-  const Rij_mag = length(Rij);
-  const mi = di.m;
-  const mj = dj.m;
-
-  const c = 1;
-  const cn1 = dot(mi, Rij) / (2 * Math.pow(Rij_mag, 5));
-  const n1 = mult(cross(mj, Rij), cn1);
-  const n2 = mult(cross(mj, mi), 1/(6 * Math.pow(Rij_mag, 3)));
-  var t = mult(vec3c(c), subtract(n1, n2));
-  const t_orig = t;
-  if (applyFriction) {
-    if (Math.abs(dj.av) > 0) {
-      // Friction
-      var mu = vec3(0, 0, (dj.av > 0 ? -tFriction : tFriction));
-      t = add(t, mu);
-      // eddy breaks
-      var B_mag = length(B(di.m, subtract(dj.p, di.p)));
-      var v_mag = Math.abs(dj.av);
-      var eddy_mag = tEddy * B_mag * B_mag * v_mag;
-      var eddy = vec3(0, 0, (dj.av > 0) ? -eddy_mag : eddy_mag);
-      t = add(t, eddy);
-      // debugValues.t_eddy_mag = eddy_mag;
-      // debugValues.t_eddy = (100 * eddy_mag / length(t_orig)).toFixed(4) + "% of T";
-      debugValues.t_eddy_mag = eddy_mag.toFixed(4) + " (" + (100 * eddy_mag / length(t_orig)).toFixed(4) + "% of T)";
-    }
-    // debugValues.torque_final = length(t).toFixed(4);
-
-    // Only update values if we're applying friction
-    debugValues.T = t_orig[2].toFixed(4);
-    debugValues.T_net = t[2].toFixed(4);
-  }
-
-  return t;
-}
 
 function updateForces(updateInitial) {
   for (var j = 0; j < dipoles.length; ++j) {
@@ -969,6 +865,7 @@ function tick() {
 function renderCircles() {
   pushMatrix();
   const s = mesh2Obj;
+  var success = true;
   for (var i = 0; i < dipoles.length; i++) { 
     pushMatrix();
     mvMatrix = mult(mvMatrix, translate(dipoles[i].p));
@@ -978,10 +875,12 @@ function renderCircles() {
       mvMatrix = mult(mvMatrix, rotate(degrees(phi), axis));
     }
     mvMatrix = mult(mvMatrix, scalem(s, s, 1));
-    renderCircle();
+    success = success && renderCircle();
     popMatrix();
   }
   popMatrix();
+
+  return success;
 }
 
 function renderSpheres() {
@@ -1003,6 +902,7 @@ function renderSpheres() {
 }
 
 function renderMagneticField(origin) {
+  var success = true;
   // Render magnetic field
   pushMatrix();
   const sf = 0.05;
@@ -1015,7 +915,7 @@ function renderMagneticField(origin) {
     for (var x = xstart; x < xend; x += inc) {
       var p = vec3(x, y, 0);
       // var v = B(dipoles[0].m, p);
-      // var v = BSum(p);
+      // var v = BSum(dipoles, p);
       var v = B(dipoles[0].m, subtract(p, dipoles[0].p));
       if (v != 0) {
         pushMatrix();
@@ -1027,12 +927,47 @@ function renderMagneticField(origin) {
           mvMatrix = mult(mvMatrix, rotate(degrees(phi), axis));
         }
         mvMatrix = mult(mvMatrix, scalem(sf, sf, sf));
-        renderArrow();
+        success = success && renderArrow();
         popMatrix();
       }
     }
   }
   popMatrix();
+  return success;
+}
+
+function renderDebug() {
+  var debug = document.getElementById("debug");
+  var html = "";
+  if (showDebug) {
+    html = "<table border=\"0\">";
+    var first = true;
+    // Render debug values that don't have a custom label
+    for (var property in debugValues) {
+      if (debugValues.hasOwnProperty(property)) {
+        var label = property;
+        if (!labeled.has(property)) {
+          html += "<tr>";
+          html += "<td>" + label + ":</td>";
+          html += "<td>" + debugValues[property] + "</td>";
+          html += "</tr>";
+        }
+      }
+    }
+    for (var i = 0; i < debugLabels.length; i++) {
+      const label = debugLabels[i].label;
+      const property = debugLabels[i].name;
+      var value = "";
+      if (debugValues.hasOwnProperty(property)) {
+        value = debugValues[property];
+      }
+      html += "<tr>";
+      html += "<td>" + label + ":</td>";
+      html += "<td>" + value + "</td>";
+      html += "</tr>";
+    }
+  }
+  debug.innerHTML = html;
 }
 
 function render() {
@@ -1064,112 +999,69 @@ function render() {
 
   gl.disable(gl.DEPTH_TEST);
 
-  // pushMatrix();
-  // mvMatrix = mult(mvMatrix, scalem(fieldTexCoord2Obj, fieldTexCoord2Obj, 1));
-  // renderTexture();
-  // popMatrix();
-  renderB();
+  var success = true;
 
-  // gl.disable(gl.DEPTH_TEST);
+  success = success && renderB();
 
   if (showCircles) {
-    renderCircles();
+    success = success && renderCircles();
   }
   if (showB) {
-    renderMagneticField(dipoles[1].p);
+    success = success && renderMagneticField(dipoles[1].p);
   }
 
   var dipole = dipoles[1];
 
   // force
   var f = F(dipoles[0], dipoles[1], false);
-  renderForceArrow(dipole, f, vec4(1.0, 0.0, 0.0, 1.0), 1.0);
+  success = success && renderForceArrow(
+    dipole, f, Fcolor, 1.0);
   // render force after friction
   // f = F(dipoles[0], dipoles[1], true);
-  // renderForceArrow(dipole, f, vec4(1.0, 0.6, 0.6, 1.0), 0.5);
+  // success = success && renderForceArrow(dipole, f, FnetColor, 0.5);
 
   // torque
   var t = T(dipoles[0], dipoles[1], false);
-  renderTorqueArrow(dipole, t, vec4(0.3, 0.3, 1.0, 1.0), 1.0);
+  success = success && renderTorqueArrow(dipole, t, Tcolor, 1.0);
   // Render torque after friction
   // var tp = T(dipoles[0], dipoles[1], true);
-  // renderTorqueArrow(dipole, tp, vec4(0.6, 0.6, 1.0, 1.0), 0.5);
+  // success = success && renderTorqueArrow(dipole, tp, TnetColor, 0.5);
 
   // render Rij
   // const Rij = subtract(dipole.p, dipoles[0].p);
-  // forceArrow.render(dipoles[0].p, Rij,
+  // success = success && forceArrow.render(dipoles[0].p, Rij,
   //                   1, black, false);
 
   // render velocity arrow
-  forceArrow.render(dipole.p, mult(dipole.v, 30),
-                    mesh2Obj/2, green, false);
+  success = success && forceArrow.render(dipole.p, mult(dipole.v, 30),
+                    mesh2Obj/2, vcolor, false);
 
   // render angular velocity arrow
-  renderAVArrow(dipole, dipole.av, vec4(1.0, 1.0, 0.0, 1.0));
+  success = success && renderAVArrow(dipole, dipole.av, wcolor);
 
   // render B at dipole
   const B1 = B(dipoles[0].m, dipole.p);
-  forceArrow.render(
+  success = success && forceArrow.render(
     dipole.p, mult(normalize(B1), 3.1*mesh2Obj), 1/3.7, Bgrey, false);
   // forceArrow.render(
   //   dipole.p, mult(normalize(B1), 4*mesh2Obj), 1/5, Bgrey, false);
 
-  // Update debug output
-  var debug = document.getElementById("debug");
-  // debug.innerHTML = "";
-  var html = "";
-  if (showDebug) {
-    html = "<table border=\"0\">";
-    var first = true;
-    for (var property in debugValues) {
-      if (debugValues.hasOwnProperty(property)) {
-        var label = property;
-        if (!labeled.has(property)) {
-          // if (!first) {
-          //   debug.innerHTML += "<br>";
-          // }
-          // first = false;
-          // debug.innerHTML += label + ": " + debugValues[property];
+  renderDebug();
 
-          html += "<tr>";
-        // html += "<td align=\"right\">" + label + ":</td>";
-        html += "<td>" + label + ":</td>";
-        html += "<td>" + debugValues[property] + "</td>";
-          html += "</tr>";
-    // debug.innerHTML += "<tr>";
-    // debug.innerHTML += "<td align=\"right\">" + label + "</td>";
-    // debug.innerHTML += "<td>" + debugValues[property] + "</td>";
-    // debug.innerHTML += "</tr>";
-        }
-      }
-    }
-    for (var i = 0; i < debugLabels.length; i++) {
-      const label = debugLabels[i].label;
-      const property = debugLabels[i].name;
-      var value = "";
-      if (debugValues.hasOwnProperty(property)) {
-        value = debugValues[property];
-      }
-      html += "<tr>";
-      // html += "<td align=\"right\">" + label + ":</td>";
-      html += "<td>" + label + ":</td>";
-      // html += "<td>" + debugValues[property] + "</td>";
-      html += "<td>" + value + "</td>";
-      html += "</tr>";
-    }
-    // debug.innerHTML += "</table>";
-    // console.log(html);
+  if (!success) {
+    requestAnimFrame(render);
   }
-  debug.innerHTML = html;
 }
 
 function setAnimate(a) {
   animate = a;
   if (animate) {
-    document.getElementById("play").innerHTML = "<font size=\"6\"><i class=\"fa fa-pause\"></i>";
+    document.getElementById("play").innerHTML =
+      "<font size=\"6\"><i class=\"fa fa-pause\"></i>";
     tick();
   } else {
-    document.getElementById("play").innerHTML = "<font size=\"6\"><i class=\"fa fa-play\"></i>";
+    document.getElementById("play").innerHTML =
+      "<font size=\"6\"><i class=\"fa fa-play\"></i>";
   }
 }
 
@@ -1219,12 +1111,6 @@ function keyDown(e) {
   case 38:
     // up arrow
     adjustSimSpeed(1.2);
-    // document.getElementById("simSpeed").value = (simSpeed * 1.2).toFixed(1);
-    // var fixed = 2;
-    // while (Number(document.getElementById("simSpeed").value) == simSpeed) {
-    //   document.getElementById("simSpeed").value = (simSpeed * 1.2).toFixed(fixed);
-    // }
-    // simSpeedChanged();
     break;
   case 39:
     // right arrow
@@ -1232,8 +1118,6 @@ function keyDown(e) {
   case 40:
     // down arrow
     adjustSimSpeed(0.8);
-    // document.getElementById("simSpeed").value = (simSpeed * 0.8).toFixed(1);
-    // simSpeedChanged();
     break;
   case 189:
     // -
@@ -1377,6 +1261,10 @@ function rotatePoint(mousePos, i) {
 }
 
 function movePoint(p, i) {
+  const v = subtract(vec3(p[0], p[1], 0), dipoles[0].p);
+  if (length(v) < D) {
+    p = add(dipoles[0].p, mult(normalize(v), D));
+  }
   document.getElementById("x").value = p[0];
   document.getElementById("y").value = p[1];
   reset();
@@ -1409,6 +1297,11 @@ function resize(canvas) {
 }
 
 function configureTexture(image) {
+  if (!textureProgram.initialized) {
+    window.setTimeout(configureTexture, 1000/60, image);
+    return;
+  }
+
   texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
