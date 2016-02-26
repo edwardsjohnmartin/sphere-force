@@ -682,6 +682,29 @@ function rk4(x, v, theta, omega, dt, m) {
   return ret;
 }
 
+// Given a sphere c1 and translation dx, and given that c1 is not
+// intersecting c0, return the t parameter at which c1 will intersect c0.
+function computeIntersection(c0, c1, dx) {
+  // Change dx such that dipole runs into other dipole.
+  var x0 = c0[0];
+  var y0 = c0[1];
+  var x1 = c1[0];
+  var y1 = c1[1];
+  var xw = dx[0];
+  var yw = dx[1];
+  // a, b and c for quadratic equation
+  var qa = xw*xw + yw*yw;
+  var qb = 2 * (x1*xw-x0*xw) + 2 * (y1*yw-y0*yw);
+  var qc = x1*x1-2*x1*x0+x0*x0 + y1*y1-2*y1*y0+y0*y0 - D*D;
+  var qt0 = (-qb + Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
+  var qt1 = (-qb - Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
+  var qt = Math.min(qt0, qt1);
+  if (qt < 0) {
+    qt = Math.max(qt0, qt1);
+  }
+  return qt;
+}
+
 // Assumes forces are up-to-date.
 function updatePositions() {
   var dt = simSpeed * 1/10000;
@@ -714,34 +737,34 @@ function updatePositions() {
   //----------------------------------------
 
   if (updateP && !dipoles[1].fixed) {
-    var R01 = subtract(dipoles[1].p, dipoles[0].p);
-    var sep = length(R01);
-    var touching = Math.abs(sep - D) < 0.00000001;
+    const R01 = subtract(dipoles[1].p, dipoles[0].p);
+    const R10 = subtract(dipoles[0].p, dipoles[1].p);
+    const touching = Math.abs(length(R01) - D) < 0.00000001;
 
     const dx = subtract(rk.p, dipoles[1].p);
-    var v = rk.v;
+    const v = rk.v;
 
-    dipoles[1].v = v;
+    // dipoles[1].v = v;
     
+    var newp, newv;
+
     if (!touching || dot(rk.v, mult(R01, -1)) < 0) {
       // We're not touching or we're traveling away from the fixed dipole
 
       // Find the distance a from the center of the fixed dipole
       // to the displacement line.
       //
-      //         u  ____ c0
+      //       R10  ____ c0
       //       ____/
       //   c1 /_________ c1+dx
-      //           w
+      //           dx
 
       var c0 = dipoles[0].p;
       var c1 = dipoles[1].p;
-      var u = subtract(c0, c1);
-      const w = dx;
 
       var dist;
-      var shadow = dot(u, w)/length(w);
-      if (shadow > length(w)) {
+      var shadow = dot(R10, dx)/length(dx);
+      if (shadow > length(dx)) {
         // Check how far from fixed dipole we'll be after traveling
         dist = length(subtract(c0, add(c1, dx)));
       } else if (shadow < 0) {
@@ -750,67 +773,47 @@ function updatePositions() {
         dist = length(subtract(c0, add(c1, dx)));
       } else {
         // Find closest approach
-        dist = length(cross(u, w)) / length(dx);
+        dist = length(cross(R10, dx)) / length(dx);
       }
 
       if (dist < D) {
-        // Change dx such that dipole runs into other dipole.
-        var x0 = c0[0];
-        var y0 = c0[1];
-        var x1 = c1[0];
-        var y1 = c1[1];
-        var xw = w[0];
-        var yw = w[1];
-        // a, b and c for quadratic equation
-        var qa = xw*xw + yw*yw;
-        var qb = 2 * (x1*xw-x0*xw) + 2 * (y1*yw-y0*yw);
-        var qc = x1*x1-2*x1*x0+x0*x0 + y1*y1-2*y1*y0+y0*y0 - D*D;
-        var qt0 = (-qb + Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
-        var qt1 = (-qb - Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
-        var qt = Math.min(qt0, qt1);
-        if (qt < 0) {
-          qt = Math.max(qt0, qt1);
-        }
-        // if (qt > 1 || qt < 0) {
-        //   console.log(qt);
-        // }
-        dipoles[1].p = add(dipoles[1].p, mult(w, qt));
-        // dipoles[1].fixed = true;
+        const qt = computeIntersection(c0, c1, dx);
+        // dipoles[1].p = add(dipoles[1].p, mult(dx, qt));
+        newp = add(dipoles[1].p, mult(dx, qt));
         if (collisionType == ELASTIC) {
-          // console.log(length(dx) - qt);
-          // dipoles[1].p = add(dipoles[1].p, mult(refln, length(dx) - qt));
-          // dipoles[1].v = mult(dipoles[1].v, -1);
-          // console.log(1 - qt);
-          // dipoles[1].p = add(dipoles[1].p, mult(dipoles[1].v, 1 - qt));
-          // dipoles[1].p = add(dipoles[1].p, mult(dx, 1 - qt));
-
-          // dipoles[1].v = mult(dipoles[1].v, -1);
-
           // specular reflection
           var normal = normalize(R01);
           var l = normalize(mult(dipoles[1].v, -1));
           var refln = 2 * dot(l, normal);
           refln = mult(refln, normal);
           refln = normalize(subtract(refln, l));
-          dipoles[1].v = mult(refln, length(dipoles[1].v));
+          // dipoles[1].v = mult(refln, length(dipoles[1].v));
+          newv = mult(refln, length(dipoles[1].v));
         } else {
-          dipoles[1].v = vec3(0, 0, 0);
+          // dipoles[1].v = vec3(0, 0, 0);
+          newv = vec3(0, 0, 0);
         }
         debugValues.v_at_collision = length(v).toFixed(5);
         debugValues.t_at_collision = elapsedTime.toFixed(5);
       } else {
-        dipoles[1].p = add(dipoles[1].p, dx);
+        // dipoles[1].p = add(dipoles[1].p, dx);
+        newp = add(dipoles[1].p, dx);
+        newv = rk.v;
       }
     } else {
       // touching
       var tangent = normalize(cross(R01, vec3(0, 0, 1)));
-      v = mult(tangent, dot(v, tangent));
-      dipoles[1].v = v;
-      var newp = add(dipoles[1].p, mult(v, dt));
-      var u = mult(normalize(subtract(newp, dipoles[0].p)), D);
-      dipoles[1].p = add(dipoles[0].p, u);
-      // dipoles[1].fixed = true;
+      newv = mult(tangent, dot(v, tangent));
+      // dipoles[1].v = v;
+      // newv = v;
+      var newp2 = add(dipoles[1].p, mult(newv, dt));
+      var u = mult(normalize(subtract(newp2, dipoles[0].p)), D);
+      // dipoles[1].p = add(dipoles[0].p, u);
+      newp = add(dipoles[0].p, u);
     }
+
+    dipoles[1].p = newp;
+    dipoles[1].v = newv;
   }
 
   updateDebug(dipoles[1]);
@@ -821,19 +824,13 @@ function vecString(v, fixed) {
 }
 
 function updateDebug(dipole) {
-  // debugValues.F = dipole.F.map(function(n) { return n.toFixed(2) });
-  // debugValues.F_mag = length(dipole.F).toFixed(4);
-  // debugValues.T = dipole.T.map(function(n) { return n.toFixed(2) });
-  // debugValues.T_mag = length(dipole.T).toFixed(4);
-
-// 1. U = -m.B (potential energy – that’s a dot product between the magnetic moment, a unit vector, and the dimensionless magnetic field)
-// 2. T = v^2/2 (translational kinetic energy, where v is the dimensionless translational speed)
-// 3. R = omega^2/20 (rotational kinetic energy, where omega is the dimensionless angular speed – and yes, it’s “20” in the denominator in dimensionless units)
-// 4. E = U + T + R = total energy
-
+  // Potential energy
   const U_ = -dot(dipole.m, B(dipoles[0].m, dipole.p));
+  // Translational kinetic energy
   const T_ = Math.pow(length(dipole.v), 2) / 2;
+  // Rotational kinetic energy
   const R_ = (dipole.av * dipole.av) / 20;
+  // Total energy
   const E_ = U_ + T_ + R_;
   debugValues.U = U_.toFixed(4);
   debugValues.T = T_.toFixed(4);
