@@ -74,8 +74,11 @@ const LEFT_BUTTON = 0;
 const RIGHT_BUTTON = 2;
 
 var simSpeed;
-var tFriction;
-var fFriction;
+var fFriction, tFriction;
+var collisionType;
+const ELASTIC = 0;
+const INELASTIC = 1;
+var fEddy, tEddy;
 
 // What to render
 var showB = false;
@@ -83,17 +86,40 @@ var showCircles = true;
 
 var showDebug = true;
 var debugValues = new Object();
-var debugLabels = new Object();
-debugLabels.w = "&omega;";
-debugLabels.w_at_zero_crossing = "&omega; at zero crossing";
-debugLabels.F_mag = "|F|";
-debugLabels.T_mag = "|T|";
-debugLabels.m = "m (&deg;)";
-debugLabels.elapsed_time = "t";
-debugLabels.time_step = "&Delta;t";
-debugLabels.v_at_collision = "v at collision";
-debugLabels.t_at_collision = "t at collision";
-debugLabels.time_at_zero_crossing = "t at zero crossing";
+var DebugLabel = function(name, label) {
+  this.name = name;
+  this.label = label;
+}
+
+var debugLabels = [];
+debugLabels.push(new DebugLabel("v_at_collision", "v<sub>coll</sub>"));
+debugLabels.push(new DebugLabel("t_at_collision", "t<sub>coll</sub>"));
+debugLabels.push(new DebugLabel("time_at_zero_crossing", "t<sub>zero</sub>"));
+debugLabels.push(new DebugLabel("w_at_zero_crossing", "&omega;<sub>zero</sub>"));
+
+debugLabels.push(new DebugLabel("t_eddy_mag", "|&tau;<sub>eddy</sub>|"));
+debugLabels.push(new DebugLabel("f_eddy_mag", "|F<sub>eddy</sub>|"));
+debugLabels.push(new DebugLabel("U", "U"));
+debugLabels.push(new DebugLabel("T", "T"));
+debugLabels.push(new DebugLabel("R", "R"));
+debugLabels.push(new DebugLabel("E", "E"));
+debugLabels.push(new DebugLabel("w", "&omega;"));
+debugLabels.push(new DebugLabel("v_mag", "|v|"));
+debugLabels.push(new DebugLabel("m", "m (&deg;)"));
+debugLabels.push(new DebugLabel("B_mag", "|B|"));
+debugLabels.push(new DebugLabel("T", "|&tau;|"));
+debugLabels.push(new DebugLabel("T_net", "|&tau;<sub>net</sub>|"))
+debugLabels.push(new DebugLabel("F", "F"));
+debugLabels.push(new DebugLabel("F_mag", "|F|"));
+debugLabels.push(new DebugLabel("F_mag_net", "|F<sub>net</sub>|"));
+debugLabels.push(new DebugLabel("elapsed_time", "t"));
+//debugLabels.push(new DebugLabel("time_step", "&Delta;t"));
+
+var labeled = new Set();
+for (var i = 0; i < debugLabels.length; ++i) {
+  const label = debugLabels[i];
+  labeled.add(label.name);
+}
 
 // Stack stuff
 var matrixStack = new Array();
@@ -240,14 +266,13 @@ function renderCircle() {
   gl.drawArrays(gl.TRIANGLES, circle.numCirclePoints + 4, 3);
 };
 
-function renderForceArrow(dipole, f, color) {
-  // var f = dipole.F;
+function renderForceArrow(dipole, f, color, thin) {
   const mag = 4 * Math.pow(length(f), 1/4);
   f = mult(normalize(f), mag);
-  forceArrow.render(dipole.p, f, mesh2Obj, color, true);
+  forceArrow.render(dipole.p, f, mesh2Obj, color, true, thin);
 };
 
-function renderTorqueArrow(dipole, t, color) {
+function renderTorqueArrow(dipole, t, color, thin) {
   var p = dipole.p;
   // var t = dipole.T;
   // var t = T(dipoles[0], dipoles[1], false);
@@ -282,6 +307,8 @@ function renderTorqueArrow(dipole, t, color) {
   // global scale
   const gs = mesh2Obj;
   mvMatrix = mult(mvMatrix, scalem(gs, gs, 1));
+  // mvMatrix = mult(mvMatrix, translate(1-thin, 1-thin, 0));
+  // mvMatrix = mult(mvMatrix, scalem(thin, thin, 1));
   // // rotation
   // mvMatrix = mult(mvMatrix, rotateZ(degrees(Math.atan2(f[1], f[0]))));
   // // translate outside of circle
@@ -534,7 +561,8 @@ function B(m, r) {
   if (mag == 0) {
     return 0;
   }
-  const c = MU0 / (4 * Math.PI);
+  // const c = MU0 / (4 * Math.PI);
+  const c = 1 / 6;
   const mr = mult(r, vec3c(3 * dot(m, r) / Math.pow(mag, 5)));
   const mm = mult(m, vec3c(1.0 / Math.pow(mag, 3)));
   return mult(subtract(mr, mm), vec3c(c));
@@ -557,7 +585,7 @@ function BSum(r) {
 
 // Force of dipole m_i on dipole m_j.
 // Equation 8 of the paper.
-// function F(i, j) {
+// applyFriction also applies to eddy breaks
 function F(di, dj, applyFriction) {
   // const Rij = subtract(dipoles[j].p, dipoles[i].p);
   const Rij = subtract(dj.p, di.p);
@@ -574,27 +602,45 @@ function F(di, dj, applyFriction) {
   const n4 = mult(vec3c(5 * dot(mi, Rij) * dot(mj, Rij) / Math.pow(Rij_mag, 2)),
                   Rij);
   var f = mult(vec3c(c), add(n1, add(n2, subtract(n3, n4))));
+  const f_orig = f.slice(0);
   if (applyFriction) {
     // Friction
     if (length(dj.v) > 0) {
-      // if (fFriction > length(f))
+      // friction
       var mu = mult(normalize(mult(dj.v, -1)), fFriction);
+      // debugValues.mu = mu;
       f = add(f, mu);
-      debugValues.mu = length(mu).toFixed(4);
+      // debugValues.mu = length(mu).toFixed(4);
+      // eddy breaks
+      var B_mag = length(B(di.m, subtract(dj.p, di.p)));
+      var v_mag = length(dj.v);
+      var eddy_mag = fEddy * B_mag * B_mag * v_mag;
+      var eddy = mult(-eddy_mag, normalized(dj.v));
+      f = add(f, eddy);
+      debugValues.B_mag = B_mag.toFixed(4);
+      debugValues.v_mag = v_mag.toFixed(4);
+      // debugValues.B_mag = B_mag;
+      // debugValues.v_mag = v_mag;
+      // debugValues.f_eddy_mag = eddy_mag.toFixed(4);
+      // debugValues.f_eddy_mag = eddy_mag;
+      // debugValues.f_eddy_mag = (100 * eddy_mag / length(f_orig)).toFixed(4) + "% of F";
+      debugValues.f_eddy_mag = eddy_mag.toFixed(4) + " (" + (100 * eddy_mag / length(f_orig)).toFixed(4) + "% of |F|)";
     }
+
+    // Only update values if we're applying friction
+    debugValues.F = f.map(function(n) { return n.toFixed(2) });
+    debugValues.F_mag = length(f_orig).toFixed(4);
+    debugValues.F_mag_net = length(f).toFixed(4);
   }
   return f;
 }
 
 // Torque of dipole m_i on dipole m_j.
 // Equation 10 of the paper.
-// function T(i, j) {
+// applyFriction applies to both friction and eddy breaks
 function T(di, dj, applyFriction) {
-  // const Rij = subtract(dipoles[j].p, dipoles[i].p);
   const Rij = subtract(dj.p, di.p);
   const Rij_mag = length(Rij);
-  // const mi = dipoles[i].m;
-  // const mj = dipoles[j].m;
   const mi = di.m;
   const mj = dj.m;
 
@@ -603,22 +649,30 @@ function T(di, dj, applyFriction) {
   const n1 = mult(cross(mj, Rij), cn1);
   const n2 = mult(cross(mj, mi), 1/(6 * Math.pow(Rij_mag, 3)));
   var t = mult(vec3c(c), subtract(n1, n2));
-
+  const t_orig = t;
   if (applyFriction) {
-    // Friction
     if (Math.abs(dj.av) > 0) {
+      // Friction
       var mu = vec3(0, 0, (dj.av > 0 ? -tFriction : tFriction));
-      // if (Math.abs(mu) > t) {
-      //   t = 0;
-      // } else {
-        t = add(t, mu);
-      // }
+      t = add(t, mu);
+      // eddy breaks
+      var B_mag = length(B(di.m, subtract(dj.p, di.p)));
+      var v_mag = Math.abs(dj.av);
+      var eddy_mag = tEddy * B_mag * B_mag * v_mag;
+      var eddy = vec3(0, 0, (dj.av > 0) ? -eddy_mag : eddy_mag);
+      t = add(t, eddy);
+      // debugValues.t_eddy_mag = eddy_mag;
+      // debugValues.t_eddy = (100 * eddy_mag / length(t_orig)).toFixed(4) + "% of T";
+      debugValues.t_eddy_mag = eddy_mag.toFixed(4) + " (" + (100 * eddy_mag / length(t_orig)).toFixed(4) + "% of T)";
     }
-    debugValues.torque_after_friction = length(t).toFixed(4);
+    // debugValues.torque_final = length(t).toFixed(4);
+
+    // Only update values if we're applying friction
+    debugValues.T = t_orig[2].toFixed(4);
+    debugValues.T_net = t[2].toFixed(4);
   }
 
   return t;
-  // return length(t) * ((t[2] < 0) ? -1 : 1);
 }
 
 function updateForces(updateInitial) {
@@ -768,12 +822,14 @@ function updatePositions() {
     var sep = length(R01);
     var touching = Math.abs(sep - D) < 0.00000001;
 
-    var dx = subtract(rk.p, dipoles[1].p);
+    const dx = subtract(rk.p, dipoles[1].p);
     var v = rk.v;
 
     dipoles[1].v = v;
     
     if (!touching || dot(rk.v, mult(R01, -1)) < 0) {
+      // We're not touching or we're traveling away from the fixed dipole
+
       // Find the distance a from the center of the fixed dipole
       // to the displacement line.
       //
@@ -785,15 +841,19 @@ function updatePositions() {
       var c0 = dipoles[0].p;
       var c1 = dipoles[1].p;
       var u = subtract(c0, c1);
-      var w = dx;
+      const w = dx;
 
       var dist;
       var shadow = dot(u, w)/length(w);
       if (shadow > length(w)) {
+        // Check how far from fixed dipole we'll be after traveling
         dist = length(subtract(c0, add(c1, dx)));
       } else if (shadow < 0) {
-        dist = length(subtract(c0, c1));
+        // Traveling away from fixed dipole
+        // dist = length(subtract(c0, c1));
+        dist = length(subtract(c0, add(c1, dx)));
       } else {
+        // Find closest approach
         dist = length(cross(u, w)) / length(dx);
       }
 
@@ -812,9 +872,34 @@ function updatePositions() {
         var qt0 = (-qb + Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
         var qt1 = (-qb - Math.sqrt(qb*qb - 4*qa*qc)) / (2 * qa);
         var qt = Math.min(qt0, qt1);
+        if (qt < 0) {
+          qt = Math.max(qt0, qt1);
+        }
+        // if (qt > 1 || qt < 0) {
+        //   console.log(qt);
+        // }
         dipoles[1].p = add(dipoles[1].p, mult(w, qt));
         // dipoles[1].fixed = true;
-        dipoles[1].v = vec3(0, 0, 0);
+        if (collisionType == ELASTIC) {
+          // console.log(length(dx) - qt);
+          // dipoles[1].p = add(dipoles[1].p, mult(refln, length(dx) - qt));
+          // dipoles[1].v = mult(dipoles[1].v, -1);
+          // console.log(1 - qt);
+          // dipoles[1].p = add(dipoles[1].p, mult(dipoles[1].v, 1 - qt));
+          // dipoles[1].p = add(dipoles[1].p, mult(dx, 1 - qt));
+
+          // dipoles[1].v = mult(dipoles[1].v, -1);
+
+          // specular reflection
+          var normal = normalize(R01);
+          var l = normalize(mult(dipoles[1].v, -1));
+          var refln = 2 * dot(l, normal);
+          refln = mult(refln, normal);
+          refln = normalize(subtract(refln, l));
+          dipoles[1].v = mult(refln, length(dipoles[1].v));
+        } else {
+          dipoles[1].v = vec3(0, 0, 0);
+        }
         debugValues.v_at_collision = length(v).toFixed(5);
         debugValues.t_at_collision = elapsedTime.toFixed(5);
       } else {
@@ -828,6 +913,7 @@ function updatePositions() {
       var newp = add(dipoles[1].p, mult(v, dt));
       var u = mult(normalize(subtract(newp, dipoles[0].p)), D);
       dipoles[1].p = add(dipoles[0].p, u);
+      // dipoles[1].fixed = true;
     }
   }
 
@@ -839,10 +925,24 @@ function vecString(v, fixed) {
 }
 
 function updateDebug(dipole) {
-  debugValues.F = dipole.F.map(function(n) { return n.toFixed(2) });
-  debugValues.F_mag = length(dipole.F).toFixed(4);
+  // debugValues.F = dipole.F.map(function(n) { return n.toFixed(2) });
+  // debugValues.F_mag = length(dipole.F).toFixed(4);
   // debugValues.T = dipole.T.map(function(n) { return n.toFixed(2) });
-  debugValues.T_mag = length(dipole.T).toFixed(4);
+  // debugValues.T_mag = length(dipole.T).toFixed(4);
+
+// 1. U = -m.B (potential energy – that’s a dot product between the magnetic moment, a unit vector, and the dimensionless magnetic field)
+// 2. T = v^2/2 (translational kinetic energy, where v is the dimensionless translational speed)
+// 3. R = omega^2/20 (rotational kinetic energy, where omega is the dimensionless angular speed – and yes, it’s “20” in the denominator in dimensionless units)
+// 4. E = U + T + R = total energy
+
+  const U_ = -dot(dipole.m, B(dipoles[0].m, dipole.p));
+  const T_ = Math.pow(length(dipole.v), 2) / 2;
+  const R_ = (dipole.av * dipole.av) / 20;
+  const E_ = U_ + T_ + R_;
+  debugValues.U = U_.toFixed(4);
+  debugValues.T = T_.toFixed(4);
+  debugValues.R = R_.toFixed(4);
+  debugValues.E = E_.toFixed(4);
 
   debugValues.v = dipole.v.map(function(n) { return n.toFixed(2) });
   debugValues.w = dipole.av.toFixed(4);
@@ -983,17 +1083,17 @@ function render() {
 
   // force
   var f = F(dipoles[0], dipoles[1], false);
-  renderForceArrow(dipole, f, vec4(1.0, 0.0, 0.0, 1.0));
-  f = F(dipoles[0], dipoles[1], true);
-  renderForceArrow(dipole, f, vec4(1.0, 0.6, 0.6, 1.0));
+  renderForceArrow(dipole, f, vec4(1.0, 0.0, 0.0, 1.0), 1.0);
+  // render force after friction
+  // f = F(dipoles[0], dipoles[1], true);
+  // renderForceArrow(dipole, f, vec4(1.0, 0.6, 0.6, 1.0), 0.5);
 
   // torque
   var t = T(dipoles[0], dipoles[1], false);
-  renderTorqueArrow(dipole, t, vec4(0.3, 0.3, 1.0, 1.0));
+  renderTorqueArrow(dipole, t, vec4(0.3, 0.3, 1.0, 1.0), 1.0);
   // Render torque after friction
-  // var mu = mult(normalize(mult(t, -1)), tFriction);
-  var tp = T(dipoles[0], dipoles[1], true);
-  renderTorqueArrow(dipole, tp, vec4(0.6, 0.6, 1.0, 1.0));
+  // var tp = T(dipoles[0], dipoles[1], true);
+  // renderTorqueArrow(dipole, tp, vec4(0.6, 0.6, 1.0, 1.0), 0.5);
 
   // render Rij
   // const Rij = subtract(dipole.p, dipoles[0].p);
@@ -1016,24 +1116,51 @@ function render() {
 
   // Update debug output
   var debug = document.getElementById("debug");
-  debug.innerHTML = "";
+  // debug.innerHTML = "";
+  var html = "";
   if (showDebug) {
+    html = "<table border=\"0\">";
     var first = true;
     for (var property in debugValues) {
       if (debugValues.hasOwnProperty(property)) {
         var label = property;
-        if (debugLabels.hasOwnProperty(property)) {
-          label = debugLabels[property];
+        if (!labeled.has(property)) {
+          // if (!first) {
+          //   debug.innerHTML += "<br>";
+          // }
+          // first = false;
+          // debug.innerHTML += label + ": " + debugValues[property];
+
+          html += "<tr>";
+        // html += "<td align=\"right\">" + label + ":</td>";
+        html += "<td>" + label + ":</td>";
+        html += "<td>" + debugValues[property] + "</td>";
+          html += "</tr>";
+    // debug.innerHTML += "<tr>";
+    // debug.innerHTML += "<td align=\"right\">" + label + "</td>";
+    // debug.innerHTML += "<td>" + debugValues[property] + "</td>";
+    // debug.innerHTML += "</tr>";
         }
-        if (first) {
-          debug.innerHTML += label + ": " + debugValues[property];
-        } else {
-          debug.innerHTML += "<br>" + label + ": " + debugValues[property];
-        }
-        first = false;
       }
     }
+    for (var i = 0; i < debugLabels.length; i++) {
+      const label = debugLabels[i].label;
+      const property = debugLabels[i].name;
+      var value = "";
+      if (debugValues.hasOwnProperty(property)) {
+        value = debugValues[property];
+      }
+      html += "<tr>";
+      // html += "<td align=\"right\">" + label + ":</td>";
+      html += "<td>" + label + ":</td>";
+      // html += "<td>" + debugValues[property] + "</td>";
+      html += "<td>" + value + "</td>";
+      html += "</tr>";
+    }
+    // debug.innerHTML += "</table>";
+    // console.log(html);
   }
+  debug.innerHTML = html;
 }
 
 function setAnimate(a) {
@@ -1339,12 +1466,24 @@ function transRotClicked() {
   updateM = document.getElementById("updateM").checked;
 }
 
+function tEddyChanged() {
+  tEddy = Number(document.getElementById("tEddy").value);
+}
+
+function fEddyChanged() {
+  fEddy = Number(document.getElementById("fEddy").value);
+}
+
 function tFrictionChanged() {
   tFriction = Number(document.getElementById("tFriction").value);
 }
 
 function fFrictionChanged() {
   fFriction = Number(document.getElementById("fFriction").value);
+}
+
+function collisionTypeChanged() {
+  collisionType = Number(document.getElementById("collisionType").value);
 }
 
 function simSpeedChanged() {
@@ -1405,6 +1544,9 @@ window.onload = function init() {
   simSpeed = Number(document.getElementById("simSpeed").value);
   tFriction = Number(document.getElementById("tFriction").value);
   fFriction = Number(document.getElementById("fFriction").value);
+  tEddy = Number(document.getElementById("tEddy").value);
+  fEddy = Number(document.getElementById("fEddy").value);
+  collisionType = Number(document.getElementById("collisionType").value);
 
   reset();
   // updateForces(true);

@@ -2,50 +2,9 @@
 <html>
   <head>
     <link rel="stylesheet" href="./font-awesome-4.5.0/css/font-awesome.min.css">
-    <style>
-      /* make the body fill the window */
-      html, body {
-      margin: 0px;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      }
-      /* make any canvas fill its container */
-      canvas {
-      width: 100%;
-      height: 100%;
-      }
-      /* debug window */
-      .debug {
-      position: absolute;
-      background-color: rgba(255, 255, 255, 0.8);
-      /*opacity: 0.4;*/
-      bottom: 10px;
-      left: 10px;
-      }
-      .number {
-      width: 30px;
-      } 
-      /* settings window */
-      .settings {
-      position: absolute;
-      background-color: rgba(255, 255, 255, 0.8);
-      bottom: 10px;
-      right: 80px;
-      }
-      /* controls window */
-      .controls {
-      position: absolute;
-      background-color: rgba(255, 255, 255, 0.8);
-      bottom: 10px;
-      right: 10px;
-      }
-      /* control button */
-      .cbutton{
-      height:50px;
-      width:50px;
-      }
-    </style>
+    <link rel="stylesheet" type="text/css" href="force-style.css">
+    <!--style>
+    </style-->
   
   <!------------------------------------------------------------>
   <!------------------------ Line shaders ---------------------->
@@ -392,13 +351,23 @@
           </td>
         </tr>
         <tr>
-          <td align="right">Torque friction:</td>
+          <td align="right">Force eddy:</td>
           <td><input
                  type="text"
                  class="number"
-                 id="tFriction"
-                 onchange="tFrictionChanged()"
-                 value="0.005"/>
+                 id="fEddy"
+                 onchange="fEddyChanged()"
+                 value="0.01"/>
+          </td>
+        </tr>
+        <tr>
+          <td align="right">Torque eddy:</td>
+          <td><input
+                 type="text"
+                 class="number"
+                 id="tEddy"
+                 onchange="tEddyChanged()"
+                 value="0.01"/>
           </td>
         </tr>
         <tr>
@@ -412,13 +381,34 @@
           </td>
         </tr>
         <tr>
+          <td align="right">Torque friction:</td>
+          <td><input
+                 type="text"
+                 class="number"
+                 id="tFriction"
+                 onchange="tFrictionChanged()"
+                 value="0.005"/>
+          </td>
+        </tr>
+        <tr>
+          <td align="right">Collisions:</td>
+          <td><select
+                 id="collisionType"
+                 value="1"
+                 onchange="collisionTypeChanged()">
+              <option value="0" selected="selected">Elastic</option>
+              <option value="1">Inelastic</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
           <td align="right">Simulation speed (dt):</td>
           <td><input
                  type="text"
                  class="number"
                  id="simSpeed"
                  onchange="simSpeedChanged()"
-                 value="2"
+                 value="2.9"
                  step="1"/>x10<sup>-4</sup>
           </td>
         </tr>
@@ -493,7 +483,11 @@
          title="play/pause animation (spacebar)">
         <font size="6"><i class="fa fa-play"></i></font></button>
 
-</div>
+    </div>
     
+    <div id="logo" class="logo">
+      Mag<i>Phyx</i>
+    </div>
+
   </body>
 </html>

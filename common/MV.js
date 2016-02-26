@@ -207,41 +207,52 @@ function equal( u, v )
 
 function add( u, v )
 {
-    var result = [];
+  var result = [];
 
-    if ( u.matrix && v.matrix ) {
-        if ( u.length != v.length ) {
-            throw "add(): trying to add matrices of different dimensions";
-        }
-
-        for ( var i = 0; i < u.length; ++i ) {
-            if ( u[i].length != v[i].length ) {
-                throw "add(): trying to add matrices of different dimensions";
-            }
-            result.push( [] );
-            for ( var j = 0; j < u[i].length; ++j ) {
-                result[i].push( u[i][j] + v[i][j] );
-            }
-        }
-
-        result.matrix = true;
-
-        return result;
+  if ( u.matrix && v.matrix ) {
+    if ( u.length != v.length ) {
+      throw "add(): trying to add matrices of different dimensions";
     }
-    else if ( u.matrix && !v.matrix || !u.matrix && v.matrix ) {
-        throw "add(): trying to add matrix and non-matrix variables";
-    }
-    else {
-        if ( u.length != v.length ) {
-            throw "add(): vectors are not the same dimension";
-        }
 
-        for ( var i = 0; i < u.length; ++i ) {
-            result.push( u[i] + v[i] );
-        }
-
-        return result;
+    for ( var i = 0; i < u.length; ++i ) {
+      if ( u[i].length != v[i].length ) {
+        throw "add(): trying to add matrices of different dimensions";
+      }
+      result.push( [] );
+      for ( var j = 0; j < u[i].length; ++j ) {
+        result[i].push( u[i][j] + v[i][j] );
+      }
     }
+
+    result.matrix = true;
+
+    return result;
+  }
+  else if ( u.matrix && !v.matrix || !u.matrix && v.matrix ) {
+    throw "add(): trying to add matrix and non-matrix variables";
+  }
+  else if (Array.isArray(u) && Array.isArray(v)) {
+  // else {
+    if ( u.length != v.length ) {
+      throw "add(): vectors are not the same dimension";
+    }
+
+    for ( var i = 0; i < u.length; ++i ) {
+      result.push( u[i] + v[i] );
+    }
+
+    return result;
+  } else if (Array.isArray(u)) {
+    for (var i = 0; i < u.length; ++i) {
+      result.push(u[i] + v);
+    }
+    return result;
+  } else if (Array.isArray(v)) {
+    for (var i = 0; i < v.length; ++i) {
+      result.push(v[i] + u);
+    }
+    return result;
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -635,6 +646,7 @@ function length( u )
 
 //----------------------------------------------------------------------------
 
+// This is in place! u will be modified!
 function normalize( u, excludeLastComponent )
 {
     if ( excludeLastComponent ) {
@@ -656,6 +668,30 @@ function normalize( u, excludeLastComponent )
     }
 
     return u;
+}
+
+function normalized( u, excludeLastComponent )
+{
+  var v = u.slice(0);
+  if ( excludeLastComponent ) {
+    var last = v.pop();
+  }
+
+  var len = length( v );
+
+  if ( !isFinite(len) ) {
+    throw "normalize: vector " + v + " has zero length";
+  }
+
+  for ( var i = 0; i < v.length; ++i ) {
+    v[i] /= len;
+  }
+
+  if ( excludeLastComponent ) {
+    v.push( last );
+  }
+
+  return v;
 }
 
 //----------------------------------------------------------------------------

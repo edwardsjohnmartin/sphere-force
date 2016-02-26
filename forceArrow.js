@@ -23,7 +23,8 @@ var ForceArrow = function() {
 // v - vector
 // s - scale factor
 // outsideCircle - whether to translate the arrow outside a circle
-ForceArrow.prototype.render = function(p, v, s, color, outsideCircle) {
+ForceArrow.prototype.render = function(p, v, s, color, outsideCircle, thin) {
+  var thin = typeof thin !== 'undefined' ?  thin : 1;
   const mag = length(v);
   if (mag == 0) {
     return;
@@ -58,6 +59,7 @@ ForceArrow.prototype.render = function(p, v, s, color, outsideCircle) {
     // f = (mag - aw)/(1 - aw)
     const ls = (mag - this.arrowWidth) / (1.0 - this.arrowWidth);
     mvMatrix = mult(mvMatrix, scalem(ls, 1, 1));
+    mvMatrix = mult(mvMatrix, scalem(1, thin, 1));
     gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
     popMatrix();
@@ -65,6 +67,7 @@ ForceArrow.prototype.render = function(p, v, s, color, outsideCircle) {
 
   pushMatrix();
   mvMatrix = mult(mvMatrix, translate(Math.max(0, mag-this.arrowWidth), 0, 0));
+  mvMatrix = mult(mvMatrix, scalem(thin, thin, 1));
   gl.uniformMatrix4fv(flatProgram.mvMatrixLoc, false, flatten(mvMatrix));
   gl.drawArrays(gl.TRIANGLES, 4, 3);
   popMatrix();
