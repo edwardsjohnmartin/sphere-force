@@ -18,7 +18,9 @@ void main() {
   // vec4 lColor = fColor;
   // vec4 lColor = vec4(1.0, 1.0, 1.0, 1.0);
 
+  // vec4 lColor = vec4(1.0, 1.0, 1.0, 1.0);
   vec4 lColor = color;
+
   //if (lPosition.x > 0.0) {
   //lColor = vec4(1.0, 0.0, 0.0, 1.0);
   //} else {
@@ -32,8 +34,10 @@ void main() {
   vec3 ks = vec3(0.0, 0.0, 0.0);
 
   // Light colors
-  vec3 La = vec3(1.0, 1.0, 1.0);
-  vec3 Ld = vec3(1.0, 1.0, 1.0);
+  vec3 lightColor = vec3(1.0, 1.0, 1.0);
+  // vec3 lightColor = color.xyz;
+  vec3 La = lightColor;
+  vec3 Ld = lightColor;
   vec3 Ls = vec3(1.0, 1.0, 1.0);
 
   // Set the light position

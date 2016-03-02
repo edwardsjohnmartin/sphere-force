@@ -50,14 +50,14 @@
                   type="text"
                   class="number"
                   id="x"
-                  value="2"
+                  value="1"
                   step="0.25"
                   onchange="x0Changed()">,
             <input
                type="text"
                class="number"
                id="y"
-               value="2"
+               value="1"
                step="0.25"
                onchange="y0Changed()">)
           </td>
@@ -73,13 +73,24 @@
           </td>
         </tr>
         <tr>
+          <!--td align="right">&mu;<sub>m</sub>:</td-->
+          <td align="right">Sphere friction:</td>
+          <td><input
+                 type="text"
+                 class="number"
+                 id="fSphereFriction"
+                 value="0.005"
+                 onchange="fSphereFrictionChanged()"/>
+          </td>
+        </tr>
+        <tr>
           <td align="right">Force eddy:</td>
           <td><input
                  type="text"
                  class="number"
                  id="fEddy"
-                 onchange="fEddyChanged()"
-                 value="0.01"/>
+                 value="0"
+                 onchange="fEddyChanged()"/>
           </td>
         </tr>
         <tr>
@@ -88,8 +99,8 @@
                  type="text"
                  class="number"
                  id="tEddy"
-                 onchange="tEddyChanged()"
-                 value="0.01"/>
+                 value="0"
+                 onchange="tEddyChanged()"/>
           </td>
         </tr>
         <tr>
@@ -98,8 +109,8 @@
                  type="text"
                  class="number"
                  id="fFriction"
-                 onchange="fFrictionChanged()"
-                 value="0.005"/>
+                 value="0"
+                 onchange="fFrictionChanged()"/>
           </td>
         </tr>
         <tr>
@@ -108,8 +119,8 @@
                  type="text"
                  class="number"
                  id="tFriction"
-                 onchange="tFrictionChanged()"
-                 value="0.005"/>
+                 value="0"
+                 onchange="tFrictionChanged()"/>
           </td>
         </tr>
         <tr>
@@ -184,6 +195,14 @@
          onfocus="removeFocus()"
          title="zoom out (-)">
         <font size="6"><i class="fa fa-search-minus"></i></font></button>
+      <br>
+      <button
+         type="button"
+         class="cbutton"
+         onclick="exportLog()"
+         onfocus="removeFocus()"
+         title="save log file (s)">
+        <font size="6"><i class="fa fa-floppy-o"></i></font></button>
       <br>
       <br>
 

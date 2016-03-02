@@ -14,6 +14,10 @@ const mesh2Obj = D/2;
 // Scale factor for the dipole field texture
 const fieldTexCoord2Obj = D * 13.0;
 
+var log = "";
+const LOG_COLLISION = "collision";
+const LOG_INITIAL = "initial";
+
 var elapsedTime = 0;
 var animate = false;
 
@@ -22,19 +26,33 @@ var updateM = true;
 
 const red = vec4(1, 0, 0, 1);
 const green = vec4(0, 1, 0, 1);
+const darkGreen = vec4(0, 0.7, 0.2, 1);
 const blue = vec4(0, 0, 1, 1);
 const cyan = vec4(0, 1, 1, 1);
-const yellow = vec4(1.0, 1.0, 0.0, 1.0);
+// const magenta = vec4(1, 0, 1, 1);
+const darkMagenta = vec4(0.8, 0, 0.8, 1);
+const yellow = vec4(1, 1, 0, 1);
+const orange = vec4(0.8, 0.6, 0.0);
+const burntOrange = vec4(0.81, 0.33, 0.0);
 const Bgrey = vec4(.5, .5, .5, 1);
 const black = vec4(0, 0, 0, 1);
 // const white = vec4(0.8, 0.8, 0.8, 1);
+// const white = vec4(1, 1, 1, 1);
+// const white = vec4(0.9, 0.9, 0.9, 1);
+const white = vec4(0.8, 0.8, 0.8, 1);
 
-const Fcolor = red;
+const Fcolor = orange;
+const Tcolor = orange;
+// const Fcolor = burntOrange;
+// const Tcolor = burntOrange;
 const FnetColor = vec4(1.0, 0.6, 0.6, 1.0);
-const Tcolor = red;
 const TnetColor = vec4(0.6, 0.6, 1.0, 1.0);
-const vcolor = green;
-const wcolor = green;
+const vcolor = darkGreen;
+const wcolor = darkGreen;
+// const vcolor = darkMagenta;
+// const wcolor = darkMagenta;
+// const Bcolor = Bgrey;
+const Bcolor = white;
 
 var canvas;
 var canvasWidth, canvasHeight;
@@ -83,6 +101,7 @@ const RIGHT_BUTTON = 2;
 
 var simSpeed;
 var fFriction, tFriction;
+var fSphereFriction;
 var collisionType;
 const ELASTIC = 0;
 const INELASTIC = 1;
@@ -263,7 +282,7 @@ function renderSphere() {
   return true;
 };
 
-function renderCircle() {
+function renderCircle(fixed) {
   if (!circleProgram.initialized) return;
   gl.useProgram(circleProgram.program);
 
@@ -278,7 +297,24 @@ function renderCircle() {
   gl.uniformMatrix4fv(circleProgram.nMatrixLoc, false, flatten(nMatrix));
 
   // Circle
-  gl.uniform4fv(circleProgram.colorLoc, flatten(vec4(1.0, 1.0, 1.0, 1.0)));
+  if (fixed) {
+    gl.uniform4fv(circleProgram.colorLoc, flatten(vec4(1.0, 1.0, 1.0, 1.0)));
+  } else {
+    const U_ = U(dipoles[1]);
+    var color;
+    const min = 1/5;
+    const max = 3/4;
+    if (U_ > 0) {
+      // Range of U is from -1/3 to 0. Convert to [min, max].
+      const u = Math.pow(Math.abs(U_) * 6, 1/2) * (max-min) + min;
+      color = vec4(1.0, 1.0-u, 1.0-u, 1.0);
+    } else {
+      // Range of U is from -1/3 to 0. Convert to [min, max].
+      const u = Math.pow(Math.abs(U_) * 3, 1/2) * (max-min) + min;
+      color = vec4(1.0-u, 1.0-u, 1.0, 1.0);
+    }
+    gl.uniform4fv(circleProgram.colorLoc, flatten(color));
+  }
   gl.drawArrays(gl.TRIANGLE_FAN, 0, circle.numCirclePoints);
 
   // Arrow base and triangle
@@ -598,20 +634,8 @@ function updateForces(updateInitial) {
   updateDebug(dipoles[1]);
 }
 
-function euler(v, a, dt) {
-  return add(v, mult(a, dt));
-}
-
-// // Computes the velocity of a free dipole at position p
-// function f(dipole, p, dt) {
-//   var newDipole = new Dipole(p, dipole.m, false);
-//   var a = F(dipoles[0], newDipole);
-//   return add(dipole.v, mult(a, dt));
-// }
-
 // Computes the acceleration of a free dipole at position p with moment m
 function a(p, v, theta, dt) {
-  // const m = dipoles[1].m;
   const m = vec3(Math.cos(theta), Math.sin(theta), 0);
   var dipole = new Dipole(p, m, false);
   dipole.v = v;
@@ -705,6 +729,29 @@ function computeIntersection(c0, c1, dx) {
   return qt;
 }
 
+function isTouching(p0, p1) {
+  const EPSILON = 0.0000000001;
+  return (Math.abs(length(subtract(p0, p1)) - D) < EPSILON);
+}
+
+function updateMoment(rk) {
+  const oldTheta = Math.atan2(dipoles[1].m[1], dipoles[1].m[0]);
+  const newTheta = rk.theta;
+  dipoles[1].m = vec3(Math.cos(rk.theta), Math.sin(rk.theta));
+  dipoles[1].av = rk.omega;
+
+  if ((oldTheta < 0 && newTheta > 0) ||
+      (oldTheta > 0 && newTheta < 0)) {
+    debugValues.w_at_zero_crossing = dipoles[1].av.toFixed(4);
+    debugValues.time_at_zero_crossing = elapsedTime.toFixed(4);
+  }
+}
+
+function updatePosition(p, v) {
+  dipoles[1].p = p;
+  dipoles[1].v = v;
+}
+
 // Assumes forces are up-to-date.
 function updatePositions() {
   var dt = simSpeed * 1/10000;
@@ -720,16 +767,7 @@ function updatePositions() {
   //----------------------------------------
 
   if (updateM) {
-    const oldTheta = Math.atan2(dipoles[1].m[1], dipoles[1].m[0]);
-    const newTheta = rk.theta;
-    dipoles[1].m = vec3(Math.cos(rk.theta), Math.sin(rk.theta));
-    dipoles[1].av = rk.omega;
-
-    if ((oldTheta < 0 && newTheta > 0) ||
-        (oldTheta > 0 && newTheta < 0)) {
-      debugValues.w_at_zero_crossing = dipoles[1].av.toFixed(4);
-      debugValues.time_at_zero_crossing = elapsedTime.toFixed(4);
-    }
+    updateMoment(rk);
   }
 
   //----------------------------------------
@@ -737,16 +775,15 @@ function updatePositions() {
   //----------------------------------------
 
   if (updateP && !dipoles[1].fixed) {
-    const R01 = subtract(dipoles[1].p, dipoles[0].p);
-    const R10 = subtract(dipoles[0].p, dipoles[1].p);
-    const touching = Math.abs(length(R01) - D) < 0.00000001;
+    const c0 = dipoles[0].p;
+    const c1 = dipoles[1].p;
+
+    const R01 = subtract(c1, c0);
+    const R10 = subtract(c0, c1);
+    // const touching = Math.abs(length(R01) - D) < 0.00000001;
+    const touching = isTouching(c0, c1);
 
     const dx = subtract(rk.p, dipoles[1].p);
-    const v = rk.v;
-
-    // dipoles[1].v = v;
-    
-    var newp, newv;
 
     if (!touching || dot(rk.v, mult(R01, -1)) < 0) {
       // We're not touching or we're traveling away from the fixed dipole
@@ -754,88 +791,203 @@ function updatePositions() {
       // Find the distance a from the center of the fixed dipole
       // to the displacement line.
       //
-      //       R10  ____ c0
+      //        dx  ____ c1+dx
       //       ____/
-      //   c1 /_________ c1+dx
-      //           dx
+      //   c1 /_________ c0
+      //           R10
 
-      var c0 = dipoles[0].p;
-      var c1 = dipoles[1].p;
-
+      // dist will be the closest approach of c1 to c0.
+      // If the shadow of R10 onto dx (using dot product) is either negative
       var dist;
-      var shadow = dot(R10, dx)/length(dx);
+      var shadow = dot(R10, dx) / length(dx);
       if (shadow > length(dx)) {
-        // Check how far from fixed dipole we'll be after traveling
-        dist = length(subtract(c0, add(c1, dx)));
+        // c1 won't pass c0, so find the ending point of c1.
+        // dist = length(subtract(c0, add(c1, dx)));
+        dist = length(subtract(c0, rk.p));
       } else if (shadow < 0) {
-        // Traveling away from fixed dipole
-        // dist = length(subtract(c0, c1));
-        dist = length(subtract(c0, add(c1, dx)));
+        // c1 is traveling away from c0, so find the ending point
+        dist = length(subtract(c0, rk.p));
       } else {
-        // Find closest approach
+        // c1 will pass c0, so find the distance at closest approach
         dist = length(cross(R10, dx)) / length(dx);
       }
 
       if (dist < D) {
+        // c1 will collide with c0. 
         const qt = computeIntersection(c0, c1, dx);
-        // dipoles[1].p = add(dipoles[1].p, mult(dx, qt));
-        newp = add(dipoles[1].p, mult(dx, qt));
         if (collisionType == ELASTIC) {
+          elapsedTime -= dt;
+          var half = 0.5 * simSpeed * 1/10000;
+          var done = false;
+          dt = half;
+          var iterations = 0;
+          // Binary search for a really close hit
+          while (!done && iterations < 100) {
+            const theta = Math.atan2(dipoles[1].m[1], dipoles[1].m[0]);
+            const newrk = rk4(
+              dipoles[1].p, dipoles[1].v,
+              theta, dipoles[1].av,
+              dt, dipoles[1].m);
+            
+            half /= 2;
+            if (length(subtract(newrk.p, dipoles[0].p)) < D) {
+              // intersects
+              dt -= half;
+            } else {
+              // no intersection
+              updateMoment(newrk);
+              updatePosition(newrk.p, newrk.v);
+              elapsedTime += dt;
+              dt = half;
+            }
+            done = isTouching(c0, dipoles[1].p);
+            ++iterations;
+          }
+
           // specular reflection
-          var normal = normalize(R01);
+          var normal = normalize(subtract(dipoles[1].p, dipoles[0].p));
           var l = normalize(mult(dipoles[1].v, -1));
           var refln = 2 * dot(l, normal);
           refln = mult(refln, normal);
           refln = normalize(subtract(refln, l));
-          // dipoles[1].v = mult(refln, length(dipoles[1].v));
-          newv = mult(refln, length(dipoles[1].v));
+          const newv = mult(refln, length(dipoles[1].v));
+          // Update log BEFORE the position and vector are updated so
+          // we get velocity values before the collision
+          updateLog(LOG_COLLISION);
+          updatePosition(dipoles[1].p, newv);
         } else {
-          // dipoles[1].v = vec3(0, 0, 0);
-          newv = vec3(0, 0, 0);
+          // inelastic collision - really should set v to something meaningful
+          const newv = vec3(0, 0, 0);
+          const newp = add(dipoles[1].p, mult(dx, qt));
+          // Update log BEFORE the position and vector are updated so
+          // we get velocity values before the collision
+          updateLog(LOG_COLLISION);
+          updatePosition(newp, newv);
         }
-        debugValues.v_at_collision = length(v).toFixed(5);
+        debugValues.v_at_collision = length(rk.v).toFixed(5);
         debugValues.t_at_collision = elapsedTime.toFixed(5);
       } else {
-        // dipoles[1].p = add(dipoles[1].p, dx);
-        newp = add(dipoles[1].p, dx);
-        newv = rk.v;
+        // no collision
+        updatePosition(rk.p, rk.v);
       }
     } else {
-      // touching
+      // already touching
       var tangent = normalize(cross(R01, vec3(0, 0, 1)));
-      newv = mult(tangent, dot(v, tangent));
-      // dipoles[1].v = v;
-      // newv = v;
-      var newp2 = add(dipoles[1].p, mult(newv, dt));
-      var u = mult(normalize(subtract(newp2, dipoles[0].p)), D);
-      // dipoles[1].p = add(dipoles[0].p, u);
-      newp = add(dipoles[0].p, u);
+      const newv = mult(tangent, dot(rk.v, tangent));
+      // newp_tangent is the new position if traveling
+      // in the tangent direction
+      var newp_tangent = add(dipoles[1].p, mult(newv, dt));
+      // Traveling in the tangent direction will pull c1 off of c0,
+      // so pull c1 toward c0 until they touch
+      var u = mult(normalize(subtract(newp_tangent, dipoles[0].p)), D);
+      const newp = add(dipoles[0].p, u);
+      updatePosition(newp, newv);
     }
-
-    dipoles[1].p = newp;
-    dipoles[1].v = newv;
   }
 
   updateDebug(dipoles[1]);
 }
 
+function resetLog() {
+  // log = "event, t, r, phi, alpha, dr/dt, d(phi)/dt, d(alpha)/dt, |v|, U, T, R, E\n";
+  log = "event, t, x, y, alpha, dx/dt, dy/dt, d(alpha)/dt, |v|, U, T, R, E\n";
+  updateLog(LOG_INITIAL);
+}
+
+function updateLog(event) {
+  const dipole = dipoles[1];
+  const rvec = subtract(dipole.p, dipoles[0].p);
+  // Number of digits
+  const m = 6;
+
+  const U_ = U(dipole);
+  const T_ = Trans(dipole);
+  const R_ = R(dipole);
+  const E_ = U_ + T_ + R_;
+
+  const p = dipole.p;
+  const v = dipole.v;
+  const r = length(rvec);
+  // d(phi)/dt = (x/r^2)dy/dt – (y/r^2)dx/dt
+  const dPhi = p[0]/(r*r) * v[1] - p[1]/(r*r) * v[0];
+
+  // event, t, x, y, alpha, dx/dt, dy/dt, d(alpha)/dt, |v|, U, T, R, E
+
+  // event
+  log += event + ",";
+  // t
+  log += elapsedTime.toFixed(m) + ",";
+  // x
+  log += p[0].toFixed(m) + ",";
+  // y
+  log += p[1].toFixed(m) + ",";
+  // // r
+  // log += r.toFixed(m) + ",";
+  // // phi - angle of position vector
+  // log += Math.atan2(p[1], p[0]).toFixed(m) + ",";
+  // alpha
+  log += Math.atan2(dipole.m[1], dipole.m[0]).toFixed(m) + ",";
+  // // dr/dt
+  // log += "\"" + ??? + "\","
+  // // d(phi)/dt
+  // log += "\"" + dPhi + "\",";
+  // dx/dt
+  log += v[0].toFixed(m) + ","
+  // dy/dt
+  log += v[1].toFixed(m) + ","
+  // d(alpha)/dt
+  log += dipole.av.toFixed(m) + ","
+  // |v|
+  log += length(dipole.v).toFixed(m) + ","
+  // U
+  log += U_.toFixed(m) + ","
+  // T
+  log += T_.toFixed(m) + ",";
+  // R
+  log += R_.toFixed(m) + ",";
+  // E
+  log += E_.toFixed(m);
+
+  log += "\n";
+}
+
+function exportLog() {
+  window.open('data:text/csv;charset=utf-8,' + escape(log));
+}
+
+// var button = document.getElementById('b');
+// button.addEventListener('click', exportToCsv);
+
 function vecString(v, fixed) {
   return v.map(function(n) { return n.toFixed(fixed) });
 }
 
+function U(dipole) {
+  return -dot(dipole.m, B(dipoles[0].m, dipole.p));
+}
+
+function Trans(dipole) {
+  return Math.pow(length(dipole.v), 2) / 2;
+}
+
+function R(dipole) {
+  return (dipole.av * dipole.av) / 20;
+}
+
 function updateDebug(dipole) {
   // Potential energy
-  const U_ = -dot(dipole.m, B(dipoles[0].m, dipole.p));
+  // const U_ = -dot(dipole.m, B(dipoles[0].m, dipole.p));
+  const U_ = U(dipole);//-dot(dipole.m, B(dipoles[0].m, dipole.p));
   // Translational kinetic energy
-  const T_ = Math.pow(length(dipole.v), 2) / 2;
+  const T_ = Trans(dipole);
   // Rotational kinetic energy
-  const R_ = (dipole.av * dipole.av) / 20;
+  const R_ = R(dipole);
   // Total energy
   const E_ = U_ + T_ + R_;
   debugValues.U = U_.toFixed(4);
   debugValues.T = T_.toFixed(4);
   debugValues.R = R_.toFixed(4);
-  debugValues.E = E_.toFixed(4);
+  debugValues.E = E_.toFixed(8);
 
   debugValues.v = dipole.v.map(function(n) { return n.toFixed(2) });
   debugValues.w = dipole.av.toFixed(4);
@@ -872,7 +1024,7 @@ function renderCircles() {
       mvMatrix = mult(mvMatrix, rotate(degrees(phi), axis));
     }
     mvMatrix = mult(mvMatrix, scalem(s, s, 1));
-    success = success && renderCircle();
+    success = success && renderCircle(i == 0);
     popMatrix();
   }
   popMatrix();
@@ -1030,16 +1182,21 @@ function render() {
   //                   1, black, false);
 
   // render velocity arrow
-  success = success && forceArrow.render(dipole.p, mult(dipole.v, 30),
+  // const vs = mult(dipole.v, Math.pow(mult(dipole.v, 30), 1);
+  const vl = length(dipole.v) * 100;
+  const vs = mult(normalized(dipole.v), Math.pow(vl, 1/2));
+  success = success && forceArrow.render(dipole.p, vs,
                     mesh2Obj/2, vcolor, false);
 
   // render angular velocity arrow
-  success = success && renderAVArrow(dipole, dipole.av, wcolor);
+  const ws = Math.pow(Math.abs(dipole.av), 1/2) * (dipole.av<0?-1:1);
+  success = success && renderAVArrow(dipole, ws, wcolor);
+  // success = success && renderAVArrow(dipole, dipole.av, wcolor);
 
   // render B at dipole
   const B1 = B(dipoles[0].m, dipole.p);
   success = success && forceArrow.render(
-    dipole.p, mult(normalize(B1), 3.1*mesh2Obj), 1/3.7, Bgrey, false);
+    dipole.p, mult(normalize(B1), 3.1*mesh2Obj), 1/3.7, Bcolor, false);
   // forceArrow.render(
   //   dipole.p, mult(normalize(B1), 4*mesh2Obj), 1/5, Bgrey, false);
 
@@ -1148,6 +1305,9 @@ function keyDown(e) {
   case "C".charCodeAt(0):
     showCircles = !showCircles;
     render();
+    break;
+  case "S".charCodeAt(0):
+    exportLog();
     break;
   // default:
   //   console.log("Unrecognized key press: " + e.keyCode);
@@ -1330,6 +1490,8 @@ function reset() {
   setAnimate(false);
 
   updateForces(true);
+
+  resetLog();
   render();
 }
 
@@ -1370,6 +1532,10 @@ function tFrictionChanged() {
 
 function fFrictionChanged() {
   fFriction = Number(document.getElementById("fFriction").value);
+}
+
+function fSphereFrictionChanged() {
+  fSphereFriction = Number(document.getElementById("fSphereFriction").value);
 }
 
 function collisionTypeChanged() {
@@ -1434,11 +1600,16 @@ window.onload = function init() {
   simSpeed = Number(document.getElementById("simSpeed").value);
   tFriction = Number(document.getElementById("tFriction").value);
   fFriction = Number(document.getElementById("fFriction").value);
+  fSphereFriction = Number(document.getElementById("fSphereFriction").value);
   tEddy = Number(document.getElementById("tEddy").value);
   fEddy = Number(document.getElementById("fEddy").value);
   collisionType = Number(document.getElementById("collisionType").value);
 
+  // log = "";
+  // log += "event, t, r, phi, alpha, dr/dt, d(phi)/dt, d(alpha)/dt, |v|, U, T, R, E\n";
+
   reset();
+  // resetLog();
   // updateForces(true);
   // render();
 }
